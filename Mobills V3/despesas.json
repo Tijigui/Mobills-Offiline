@@ -1,0 +1,28 @@
+{
+    "despesas": [
+        {
+            "descricao": "Compra supermercado",
+            "valor": 150.00,
+            "data": "2025-04-08",
+            "tag": "Alimentação",
+            "banco": "Banco do Brasil"
+        }
+    ],
+    "contas": [
+        {
+            "nome": "Banco do Brasil",
+            "saldo": 1000.00
+        },
+        {
+            "nome": "Itaú",
+            "saldo": 500.00
+        }
+    ],
+    "cartoes_de_credito": [
+        {
+            "nome": "Cartão Visa",
+            "limite": 2000.00,
+            "fatura_atual": 500.00
+        }
+    ]
+}

@@ -1,0 +1,33 @@
+{
+    "despesas": [],
+    "contas": [
+        {
+            "nome": "Banco do Brasil",
+            "saldo": 111.0,
+            "descricao": "Aquela lá",
+            "tipo": "VR/VA",
+            "cor": "#8000ff"
+        },
+        {
+            "nome": "Nubank",
+            "saldo": 10.0,
+            "descricao": "11",
+            "tipo": "Poupança",
+            "cor": "#F44336"
+        },
+        {
+            "nome": "Pic Pay",
+            "saldo": 123.0,
+            "descricao": "1111",
+            "tipo": "Dinheiro",
+            "cor": "#9C27B0"
+        },
+        {
+            "nome": "Bradesco",
+            "saldo": 11111.0,
+            "descricao": "111",
+            "tipo": "Dinheiro",
+            "cor": "#FF9800"
+        }
+    ]
+}
