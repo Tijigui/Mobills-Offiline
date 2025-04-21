@@ -28,6 +28,13 @@
             "descricao": "111",
             "tipo": "Dinheiro",
             "cor": "#FF9800"
+        },
+        {
+            "nome": "C6 Bank",
+            "saldo": 1111.0,
+            "descricao": "1111",
+            "tipo": "Dinheiro",
+            "cor": "#FF9800"
         }
     ]
 }

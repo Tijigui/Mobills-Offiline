@@ -7,6 +7,9 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import json
 from collections import defaultdict
+from contas import mostrar_contas
+from dashboard import mostrar_dashboard
+
 
 CONFIG_FILE = "config.json"
 
