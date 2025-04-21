@@ -7,5 +7,3 @@ if __name__ == "__main__":
     db = Database()  # Usa o arquivo despesas.json por padrão
     app = MainApplication(root, db)
     root.mainloop()
-    1111
-    Teste
