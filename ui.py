@@ -578,4 +578,3 @@ class MainApplication:
         cor = colorchooser.askcolor(title="Escolher Cor")[1]
         if cor:
             cor_var.set(cor)
-            
