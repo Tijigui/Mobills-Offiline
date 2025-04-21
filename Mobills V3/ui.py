@@ -579,4 +579,3 @@ class MainApplication:
         if cor:
             cor_var.set(cor)
             
-            teste
