@@ -1,5 +1,20 @@
 {
-    "despesas": [],
+    "despesas": [
+        {
+            "descricao": "Olhaaa",
+            "valor": 10.0,
+            "data": "21/04/2025",
+            "tag": "Pix",
+            "banco": "Japones"
+        },
+        {
+            "descricao": "Olhaaa",
+            "valor": 10.0,
+            "data": "15/04/2025",
+            "tag": "Pix",
+            "banco": "Japones"
+        }
+    ],
     "contas": [
         {
             "nome": "Banco do Brasil",
@@ -24,17 +39,22 @@
         },
         {
             "nome": "Bradesco",
-            "saldo": 11111.0,
+            "saldo": 11.0,
+            "saldo_inicial": 11.0,
             "descricao": "111",
             "tipo": "Dinheiro",
-            "cor": "#FF9800"
+            "cor": "#FF9800",
+            "data_criacao": "21/04/2025"
         },
         {
             "nome": "C6 Bank",
-            "saldo": 1111.0,
+            "saldo": 1.0,
+            "saldo_inicial": 1.0,
             "descricao": "1111",
             "tipo": "Dinheiro",
-            "cor": "#FF9800"
+            "cor": "#43A047",
+            "data_criacao": "21/04/2025"
         }
-    ]
+    ],
+    "cartoes": []
 }
