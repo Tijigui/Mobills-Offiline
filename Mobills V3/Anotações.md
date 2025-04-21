@@ -11,3 +11,7 @@ Manage Expenses Table: Tabela de gerenciamento de despesas.
 Load Data: Carregamento de dados na tabela.
 Edit Expense Window: Define a janela de edição de despesa.
 Edit Expense Form: Formulário para editar despesa.
+
+
+git push - envia codigo do VSCode para o github
+Commit + Push - Salva as alteracoes e ja envia para o repositorio
