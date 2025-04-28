@@ -9,7 +9,7 @@ import json
 from collections import defaultdict
 from contas import mostrar_contas
 from dashboard import mostrar_dashboard
-from transacoes import mostrar_transacoes
+from transacoes import TransacoesModernUI  # Importação correta da classe
 from cartoes_creditos import mostrar_cartoes_credito
 from configuracoes import mostrar_configuracoes
 
@@ -180,8 +180,34 @@ class MainApplication:
         mostrar_contas(self.main_content, self.database)
 
     def show_transactions(self):
-        # Usar a função do módulo transacoes
-        mostrar_transacoes(self.main_content, self.database)
+        # Limpar o conteúdo atual
+        self.clear_main_content()
+        
+        try:
+            # Criar um frame container para as transações
+            transactions_frame = tk.Frame(self.main_content)
+            transactions_frame.pack(fill=tk.BOTH, expand=True)
+            
+            # Instanciar a classe TransacoesModernUI
+            self.transacoes_ui = TransacoesModernUI(transactions_frame, self.database)
+            
+            # Verificar se há algum método de inicialização específico que precise ser chamado
+            if hasattr(self.transacoes_ui, 'inicializar'):
+                self.transacoes_ui.inicializar()
+                
+            print("Interface de transações carregada com sucesso")
+        except Exception as e:
+            # Exibir mensagem de erro no frame principal
+            error_label = tk.Label(
+                self.main_content, 
+                text=f"Erro ao carregar transações: {str(e)}", 
+                fg="red", 
+                font=("Arial", 12)
+            )
+            error_label.pack(pady=20)
+            print(f"Erro ao carregar transações: {e}")
+            import traceback
+            traceback.print_exc()
 
     def show_credit_cards(self):
         # Usar a função do módulo cartoes_creditos

@@ -1,647 +1,290 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk
 from tkcalendar import DateEntry
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from collections import defaultdict
-import threading
 from datetime import datetime
+import os
+from PIL import Image, ImageTk
+import io
+import base64
+import requests
+from tkinter.font import Font
 
-class Transacao:
-    """Classe de domínio que representa uma transação financeira"""
-    def __init__(self, descricao, valor, data, tag, banco):
-        self.descricao = descricao
-        self.valor = valor
-        self.data = data
-        self.tag = tag
-        self.banco = banco
-        self.timestamp = datetime.now()
-    
-    def validar(self):
-        """Valida se todos os campos da transação estão preenchidos corretamente"""
-        if not self.descricao or not self.data or not self.tag or not self.banco:
-            return False
-        try:
-            float(self.valor)
-            return True
-        except ValueError:
-            return False
-    
-    def to_dict(self):
-        """Converte a transação para um dicionário"""
-        return {
-            "descricao": self.descricao,
-            "valor": float(self.valor),
-            "data": self.data,
-            "tag": self.tag,
-            "banco": self.banco
-        }
-
-
-class TransactionUnitOfWork:
-    """Implementa o padrão Unit of Work para gerenciar transações com o banco de dados"""
-    def __init__(self, database):
+class TransacoesModernUI:
+    """Classe responsável pela interface moderna do usuário para transações"""
+    def __init__(self, root, database=None):
+        self.root = root
         self.database = database
-        self.transaction = None
-    
-    def __enter__(self):
-        # Iniciar transação (simulado, já que o database atual não suporta transações)
-        return self
-    
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        # Se ocorrer uma exceção, faz rollback (simulado)
-        if exc_type is not None:
-            return False
-        # Caso contrário, salva os dados
-        self.database.salvar_dados()
-        return True
-
-
-class TransacoesController:
-    """Controlador que gerencia a lógica de negócios das transações"""
-    def __init__(self, database):
-        self.database = database
-    
-    def listar_transacoes(self, filtros=None):
-        """Lista transações com filtros opcionais"""
-        if filtros is None:
-            filtros = {}
         
-        return self.database.listar_despesas(
-            data_inicio=filtros.get('data_inicio', None),
-            data_fim=filtros.get('data_fim', None),
-            tag=filtros.get('tag', None),
-            banco=filtros.get('banco', None),
-            busca_descricao=filtros.get('busca_descricao', None),
-            ordenar_por=filtros.get('ordenar_por', 'data')
-        )
-    
-    def adicionar_transacao(self, transacao):
-        """Adiciona uma nova transação"""
-        if not transacao.validar():
-            return False
+        # Verifica se root é uma janela (Tk ou Toplevel)
+        self.is_window = hasattr(self.root, 'title')
         
-        with TransactionUnitOfWork(self.database):
-            return self.database.adicionar_despesa(**transacao.to_dict())
-    
-    def editar_transacao(self, indice, transacao):
-        """Edita uma transação existente"""
-        if not transacao.validar():
-            return False
+        if self.is_window:
+            self.root.title("")  # Título vazio
+            # Configurações específicas para janela
+            self.root.geometry("1200x700")
+            self.root.minsize(800, 600)
         
-        with TransactionUnitOfWork(self.database):
-            return self.database.editar_despesa(indice, **transacao.to_dict())
-    
-    def remover_transacao(self, indice):
-        """Remove uma transação"""
-        with TransactionUnitOfWork(self.database):
-            return self.database.remover_despesa(indice)
-    
-    def exportar_para_csv(self, caminho, filtros=None):
-        """Exporta transações para CSV"""
-        if filtros is None:
-            filtros = {}
+        # Configuração da interface
+        self.root.configure(bg="#1e1e1e")
         
-        return self.database.exportar_para_csv(
-            caminho,
-            data_inicio=filtros.get('data_inicio', None),
-            data_fim=filtros.get('data_fim', None),
-            tag=filtros.get('tag', None),
-            banco=filtros.get('banco', None),
-            busca_descricao=filtros.get('busca_descricao', None),
-            ordenar_por=filtros.get('ordenar_por', 'data')
-        )
-    
-    def obter_resumo(self, filtros=None):
-        """Obtém um resumo das transações agrupadas por tag e banco"""
-        transacoes = self.listar_transacoes(filtros)
-        
-        total = sum(t['valor'] for t in transacoes)
-        por_tag = defaultdict(float)
-        por_banco = defaultdict(float)
-        
-        for t in transacoes:
-            por_tag[t['tag']] += t['valor']
-            por_banco[t['banco']] += t['valor']
-        
-        return {
-            'total': total,
-            'por_tag': dict(por_tag),
-            'por_banco': dict(por_banco),
-            'transacoes': transacoes
+        # Cores do tema escuro
+        self.colors = {
+            "bg_dark": "#1e1e1e",
+            "bg_medium": "#2d2d2d",
+            "bg_light": "#3d3d3d",
+            "text": "#ffffff",
+            "text_secondary": "#a0a0a0",
+            "accent": "#8a56ff",
+            "green": "#4CAF50",
+            "red": "#F44336",
+            "blue": "#2196F3",
+            "teal": "#26a69a"
         }
-
-
-class TransacoesUI:
-    """Classe responsável pela interface do usuário para transações"""
-    def __init__(self, main_content, controller):
-        self.main_content = main_content
-        self.controller = controller
-        self.filtro_frame = None
-        self.tree = None
-        self.total_label = None
-        self.despesas_filtradas = []
         
-        # Opções para tags e ordenação
-        self.opcoes_tag = ["Alimentação", "Lazer", "Assinatura", "Casa", "Compras", 
-                           "Educação", "Saúde", "Pix", "Transporte", "Viagem"]
+        # Fontes personalizadas
+        self.font_regular = Font(family="Segoe UI", size=10)
+        self.font_bold = Font(family="Segoe UI", size=10, weight="bold")
+        self.font_title = Font(family="Segoe UI", size=14, weight="bold")
+        self.font_subtitle = Font(family="Segoe UI", size=12, weight="bold")
+        
+        # Configurar estilo para widgets
+        self._configurar_estilo()
+        
+        # Criar layout principal
+        self._criar_layout()
+        
+        # Carregar dados iniciais
+        self._carregar_dados()
     
-    def mostrar(self):
-        """Método principal que exibe a interface de transações"""
-        self._limpar_conteudo()
-        self._criar_cabecalho()
-        self._criar_filtros()
-        self._criar_listagem()
-        self._criar_botoes_acao()
-        self._carregar_transacoes()
+    def _configurar_estilo(self):
+        """Configura o estilo dos widgets ttk"""
+        style = ttk.Style()
+        style.theme_use('default')
+        
+        # Configuração para Treeview (tabela)
+        style.configure("Treeview", 
+                        background=self.colors["bg_medium"],
+                        foreground=self.colors["text"],
+                        fieldbackground=self.colors["bg_medium"],
+                        borderwidth=0)
+        
+        style.configure("Treeview.Heading", 
+                        background=self.colors["bg_light"],
+                        foreground=self.colors["text"],
+                        relief="flat")
+        
+        style.map("Treeview.Heading",
+                  background=[('active', self.colors["bg_light"])])
+        
+        style.map("Treeview",
+                  background=[('selected', self.colors["accent"])],
+                  foreground=[('selected', self.colors["text"])])
+        
+        # Configuração para botões
+        style.configure("Accent.TButton", 
+                        background=self.colors["accent"],
+                        foreground=self.colors["text"])
+        
+        style.map("Accent.TButton",
+                  background=[('active', self.colors["accent"])])
     
-    def _limpar_conteudo(self):
-        """Limpa o conteúdo atual da tela"""
-        for widget in self.main_content.winfo_children():
-            widget.destroy()
+    def _criar_layout(self):
+        """Cria o layout principal da aplicação"""
+        # Frame principal
+        self.main_frame = tk.Frame(self.root, bg=self.colors["bg_dark"])
+        self.main_frame.pack(fill="both", expand=True)
+        
+        # Container principal para conteúdo
+        self.content_container = tk.Frame(self.main_frame, bg=self.colors["bg_dark"])
+        self.content_container.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Frame para área principal (esquerda) e área de resumo (direita)
+        self.split_container = tk.Frame(self.content_container, bg=self.colors["bg_dark"])
+        self.split_container.pack(fill="both", expand=True)
+        
+        # Área principal (esquerda)
+        self.main_area = tk.Frame(self.split_container, bg=self.colors["bg_dark"])
+        self.main_area.pack(side="left", fill="both", expand=True, padx=(0, 10))
+        
+        # Área de resumo (direita)
+        self.summary_area = tk.Frame(self.split_container, bg=self.colors["bg_dark"], width=300)
+        self.summary_area.pack(side="right", fill="y")
+        self.summary_area.pack_propagate(False)  # Mantém a largura definida
+        
+        # Botão de Transações na parte superior da área principal
+        self._criar_botao_transacoes()
+        
+        # Tabela de transações logo abaixo do botão
+        self._criar_tabela_transacoes()
+        
+        # Área de resumo (lado direito)
+        self._criar_area_resumo()
     
-    def _criar_cabecalho(self):
-        """Cria o cabeçalho da página de transações"""
-        tk.Label(self.main_content, text="Transações", font=("Arial", 24), bg="#ffffff").pack(pady=20)
+    def _criar_botao_transacoes(self):
+        """Cria o botão de Transações na parte superior"""
+        # Frame para o botão
+        btn_frame = tk.Frame(self.main_area, bg=self.colors["bg_dark"])
+        btn_frame.pack(fill="x", pady=(0, 10))
+        
+        # Botão de Transações (destacado)
+        transacoes_btn = tk.Button(btn_frame, text="Transações",
+                                  bg=self.colors["accent"],
+                                  fg=self.colors["text"],
+                                  font=self.font_regular,
+                                  relief="flat",
+                                  borderwidth=0,
+                                  padx=15,
+                                  pady=8,
+                                  cursor="hand2")
+        transacoes_btn.pack(side="left")
+        
+        # Arredondar os cantos do botão (simulação)
+        self._arredondar_widget(transacoes_btn)
     
-    def _criar_filtros(self):
-        """Cria a seção de filtros"""
-        self.filtro_frame = tk.Frame(self.main_content, bg="#ffffff")
-        self.filtro_frame.pack(pady=10, fill=tk.X, padx=20)
+    def _criar_tabela_transacoes(self):
+        """Cria a tabela de transações"""
+        # Frame para a tabela com fundo diferente
+        table_outer_frame = tk.Frame(self.main_area, bg=self.colors["bg_medium"])
+        table_outer_frame.pack(fill="both", expand=True, pady=(0, 10))
         
-        # Usar grid para melhor organização
-        # Linha 1: Data Início e Data Fim
-        tk.Label(self.filtro_frame, text="Data Início:", bg="#ffffff").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        self.filtro_data_inicio = DateEntry(self.filtro_frame, date_pattern="dd/mm/yyyy", width=15)
-        self.filtro_data_inicio.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        # Arredondar os cantos do frame externo
+        self._arredondar_widget(table_outer_frame)
         
-        tk.Label(self.filtro_frame, text="Data Fim:", bg="#ffffff").grid(row=0, column=2, padx=5, pady=5, sticky="e")
-        self.filtro_data_fim = DateEntry(self.filtro_frame, date_pattern="dd/mm/yyyy", width=15)
-        self.filtro_data_fim.grid(row=0, column=3, padx=5, pady=5, sticky="w")
+        # Padding interno
+        table_frame = tk.Frame(table_outer_frame, bg=self.colors["bg_medium"])
+        table_frame.pack(fill="both", expand=True, padx=20, pady=20)
         
-        # Linha 2: Tag e Banco
-        tk.Label(self.filtro_frame, text="Tag:", bg="#ffffff").grid(row=1, column=0, padx=5, pady=5, sticky="e")
-        self.filtro_tag = ttk.Combobox(self.filtro_frame, values=self.opcoes_tag, width=15)
-        self.filtro_tag.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        # Barra de navegação do mês
+        self._criar_navegacao_mes(table_frame)
         
-        tk.Label(self.filtro_frame, text="Banco:", bg="#ffffff").grid(row=1, column=2, padx=5, pady=5, sticky="e")
-        self.filtro_banco = tk.Entry(self.filtro_frame, width=17)
-        self.filtro_banco.grid(row=1, column=3, padx=5, pady=5, sticky="w")
+        # Cabeçalho da tabela
+        headers = ["Situação", "Data", "Descrição", "Categoria", "Conta", "Valor", "Ações"]
+        header_frame = tk.Frame(table_frame, bg=self.colors["bg_light"])
+        header_frame.pack(fill="x", pady=(20, 0))
         
-        # Linha 3: Descrição e Botão de Busca
-        tk.Label(self.filtro_frame, text="Descrição:", bg="#ffffff").grid(row=2, column=0, padx=5, pady=5, sticky="e")
-        self.filtro_descricao = tk.Entry(self.filtro_frame, width=17)
-        self.filtro_descricao.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+        # Larguras das colunas
+        widths = [80, 100, 200, 150, 150, 100, 80]
         
-        # Ordenação
-        self.sort_by = tk.StringVar(value="data")
-        ordenacao_frame = tk.Frame(self.filtro_frame, bg="#ffffff")
-        ordenacao_frame.grid(row=2, column=2, columnspan=2, padx=5, pady=5, sticky="w")
-        
-        tk.Label(ordenacao_frame, text="Ordenar por:", bg="#ffffff").pack(side=tk.LEFT)
-        tk.Radiobutton(ordenacao_frame, text="Data", variable=self.sort_by, value="data", bg="#ffffff").pack(side=tk.LEFT)
-        tk.Radiobutton(ordenacao_frame, text="Valor", variable=self.sort_by, value="valor", bg="#ffffff").pack(side=tk.LEFT)
-        
-        # Botão de busca
-        tk.Button(self.filtro_frame, text="Buscar", command=self._carregar_transacoes, 
-                  bg="#4CAF50", fg="white").grid(row=3, column=3, padx=5, pady=10, sticky="e")
-        
-        # Botão para limpar filtros
-        tk.Button(self.filtro_frame, text="Limpar Filtros", command=self._limpar_filtros, 
-                  bg="#f0f0f0").grid(row=3, column=2, padx=5, pady=10, sticky="e")
-    
-    def _criar_listagem(self):
-        """Cria a listagem de transações"""
-        # Frame para a listagem
-        list_frame = tk.Frame(self.main_content, bg="#ffffff")
-        list_frame.pack(pady=10, fill=tk.BOTH, expand=True, padx=20)
-        
-        # Cabeçalho da listagem
-        header_frame = tk.Frame(list_frame, bg="#f0f0f0")
-        header_frame.pack(fill=tk.X)
-        
-        headers = ["Descrição", "Valor", "Data", "Tag", "Banco"]
-        widths = [3, 1, 1, 1, 1]  # Proporções relativas
-        
+        # Criar cabeçalhos
         for i, header in enumerate(headers):
-            tk.Label(header_frame, text=header, font=("Arial", 10, "bold"), 
-                     bg="#f0f0f0", width=15*widths[i]).pack(side=tk.LEFT, padx=5, pady=5)
+            header_label = tk.Label(header_frame, text=header, 
+                                   bg=self.colors["bg_light"],
+                                   fg=self.colors["text_secondary"],
+                                   font=self.font_bold,
+                                   width=widths[i] // 10)  # Aproximação de pixels para caracteres
+            header_label.grid(row=0, column=i, sticky="w", padx=5, pady=10)
         
-        # Listagem com scrollbar
-        tree_frame = tk.Frame(list_frame)
-        tree_frame.pack(fill=tk.BOTH, expand=True)
+        # Área de conteúdo da tabela
+        table_content = tk.Frame(table_frame, bg=self.colors["bg_medium"])
+        table_content.pack(fill="both", expand=True)
         
-        self.tree = tk.Listbox(tree_frame, font=("Arial", 10), height=15)
-        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        # Mensagem de "Nenhum resultado" com ilustração
+        empty_frame = tk.Frame(table_content, bg=self.colors["bg_medium"])
+        empty_frame.pack(expand=True, fill="both")
         
-        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.tree.configure(yscrollcommand=scrollbar.set)
+        # Aqui seria ideal ter a imagem da ilustração
+        # Como não temos a imagem exata, vamos usar um placeholder
+        empty_label = tk.Label(empty_frame, text="📊", 
+                              font=("Arial", 48),
+                              bg=self.colors["bg_medium"],
+                              fg=self.colors["accent"])
+        empty_label.pack(pady=(50, 10))
         
-        # Label para mostrar o total
-        self.total_label = tk.Label(self.main_content, text="Total: R$ 0,00", 
-                                    font=("Arial", 12, "bold"), bg="#ffffff")
-        self.total_label.pack(pady=10)
+        empty_text = tk.Label(empty_frame, text="Salve meu bom", 
+                             font=self.font_subtitle,
+                             bg=self.colors["bg_medium"],
+                             fg=self.colors["text_secondary"])
+        empty_text.pack()
     
-    def _criar_botoes_acao(self):
-        """Cria os botões de ação"""
-        botoes_frame = tk.Frame(self.main_content, bg="#ffffff")
-        botoes_frame.pack(pady=15, padx=20)
+    def _criar_navegacao_mes(self, parent_frame):
+        """Cria a barra de navegação do mês"""
+        nav_frame = tk.Frame(parent_frame, bg=self.colors["bg_medium"], height=50)
+        nav_frame.pack(fill="x")
         
-        botoes = [
-            ("Adicionar", self._abrir_janela_adicionar, "#4CAF50"),
-            ("Editar", self._abrir_janela_editar, "#2196F3"),
-            ("Remover", self._remover_transacao, "#F44336"),
-            ("Exportar CSV", self._exportar_csv, "#FF9800"),
-            ("Resumo", self._mostrar_resumo, "#9C27B0")
-        ]
+        # Botão anterior
+        prev_btn = tk.Button(nav_frame, text="<", bg=self.colors["bg_medium"],
+                            fg=self.colors["accent"], font=self.font_bold,
+                            relief="flat", borderwidth=0, cursor="hand2")
+        prev_btn.pack(side="left")
         
-        for texto, comando, cor in botoes:
-            tk.Button(botoes_frame, text=texto, command=comando, 
-                      bg=cor, fg="white", width=12, font=("Arial", 10)).pack(side=tk.LEFT, padx=5)
+        # Mês atual (em destaque)
+        month_frame = tk.Frame(nav_frame, bg=self.colors["accent"], padx=15, pady=5)
+        month_frame.pack(side="left", expand=True)
+        
+        # Arredondar os cantos do frame do mês
+        self._arredondar_widget(month_frame)
+        
+        month_label = tk.Label(month_frame, text="Abril 2025",
+                              bg=self.colors["accent"], fg=self.colors["text"],
+                              font=self.font_regular)
+        month_label.pack()
+        
+        # Botão próximo
+        next_btn = tk.Button(nav_frame, text=">", bg=self.colors["bg_medium"],
+                            fg=self.colors["accent"], font=self.font_bold,
+                            relief="flat", borderwidth=0, cursor="hand2")
+        next_btn.pack(side="right")
     
-    def _carregar_transacoes(self):
-        """Carrega as transações com base nos filtros"""
-        # Limpar listagem atual
-        self.tree.delete(0, tk.END)
-        
-        # Obter filtros
-        filtros = {
-            'data_inicio': self.filtro_data_inicio.get(),
-            'data_fim': self.filtro_data_fim.get(),
-            'tag': self.filtro_tag.get(),
-            'banco': self.filtro_banco.get(),
-            'busca_descricao': self.filtro_descricao.get(),
-            'ordenar_por': self.sort_by.get()
-        }
-        
-        # Buscar transações
-        self.despesas_filtradas = self.controller.listar_transacoes(filtros)
-        
-        # Preencher listagem
-        total = 0.0
-        for i, despesa in enumerate(self.despesas_filtradas):
-            # Formatar valores para exibição
-            valor_formatado = f"R$ {despesa['valor']:.2f}"
-            
-            # Definir cor com base no tipo (despesa ou receita)
-            cor = "#ffcccc" if despesa['valor'] < 0 else "#ccffcc"
-            
-            # Inserir na listagem
-            self.tree.insert(
-                tk.END, 
-                f"{despesa['descricao']:<30} {valor_formatado:>12} {despesa['data']:>12} {despesa['tag']:>15} {despesa['banco']:>15}"
-            )
-            
-            # Alternar cores das linhas para melhor legibilidade
-            if i % 2 == 0:
-                self.tree.itemconfig(i, {'bg': '#f5f5f5'})
-            
-            # Somar ao total
-            total += despesa['valor']
-        
-        # Atualizar label de total
-        self.total_label.config(text=f"Total: R$ {total:.2f}")
+    def _criar_area_resumo(self):
+        """Cria a área de resumo financeiro (lado direito)"""
+        # Cards de resumo
+        self._criar_card_resumo("Saldo atual", "R$ -144,78", self.colors["blue"], "💰")
+        self._criar_card_resumo("Receitas", "R$ 0,00", self.colors["green"], "⬆️")
+        self._criar_card_resumo("Despesas", "R$ 0,00", self.colors["red"], "⬇️")
+        self._criar_card_resumo("Balanço mensal", "R$ 0,00", self.colors["teal"], "⚖️")
     
-    def _limpar_filtros(self):
-        """Limpa todos os filtros"""
-        self.filtro_tag.set("")
-        self.filtro_banco.delete(0, tk.END)
-        self.filtro_descricao.delete(0, tk.END)
-        self.filtro_data_inicio.set_date(None)
-        self.filtro_data_fim.set_date(None)
-        self.sort_by.set("data")
+    def _criar_card_resumo(self, titulo, valor, cor_icone, emoji):
+        """Cria um card de resumo financeiro"""
+        card_frame = tk.Frame(self.summary_area, bg=self.colors["bg_medium"], padx=15, pady=15)
+        card_frame.pack(fill="x", pady=10, padx=10)
         
-        # Recarregar transações
-        self._carregar_transacoes()
+        # Arredondar os cantos do card
+        self._arredondar_widget(card_frame)
+        
+        # Layout do card
+        info_frame = tk.Frame(card_frame, bg=self.colors["bg_medium"])
+        info_frame.pack(side="left", fill="both", expand=True)
+        
+        # Título do card
+        title_label = tk.Label(info_frame, text=titulo, 
+                              font=self.font_regular,
+                              bg=self.colors["bg_medium"],
+                              fg=self.colors["text_secondary"])
+        title_label.pack(anchor="w")
+        
+        # Valor
+        value_label = tk.Label(info_frame, text=valor, 
+                              font=self.font_subtitle,
+                              bg=self.colors["bg_medium"],
+                              fg=self.colors["text"])
+        value_label.pack(anchor="w", pady=(5, 0))
+        
+        # Ícone (círculo colorido com emoji)
+        icon_frame = tk.Frame(card_frame, bg=self.colors["bg_medium"])
+        icon_frame.pack(side="right", padx=(10, 0))
+        
+        icon_canvas = tk.Canvas(icon_frame, width=40, height=40, 
+                               bg=self.colors["bg_medium"],
+                               highlightthickness=0)
+        icon_canvas.pack()
+        
+        # Círculo colorido
+        icon_canvas.create_oval(5, 5, 35, 35, fill=cor_icone, outline="")
+        
+        # Emoji
+        icon_canvas.create_text(20, 20, text=emoji, font=("Arial", 14))
     
-    def _abrir_janela_adicionar(self):
-        """Abre janela para adicionar nova transação"""
-        janela = tk.Toplevel(self.main_content)
-        janela.title("Adicionar Transação")
-        janela.geometry("400x350")
-        janela.resizable(False, False)
-        
-        # Centralizar na tela
-        janela.update_idletasks()
-        width = janela.winfo_width()
-        height = janela.winfo_height()
-        x = (janela.winfo_screenwidth() // 2) - (width // 2)
-        y = (janela.winfo_screenheight() // 2) - (height // 2)
-        janela.geometry('{}x{}+{}+{}'.format(width, height, x, y))
-        
-        # Criar formulário
-        form_frame = tk.Frame(janela)
-        form_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-        
-        # Campos do formulário
-        campos = [
-            ("Descrição:", "descricao", None),
-            ("Valor:", "valor", None),
-            ("Data:", "data", None),
-            ("Tag:", "tag", self.opcoes_tag),
-            ("Banco:", "banco", None)
-        ]
-        
-        entradas = {}
-        
-        for i, (label_text, key, options) in enumerate(campos):
-            tk.Label(form_frame, text=label_text).grid(row=i, column=0, sticky="e", padx=10, pady=8)
-            
-            if key == "data":
-                entrada = DateEntry(form_frame, date_pattern="dd/mm/yyyy", width=20)
-            elif options:
-                entrada = ttk.Combobox(form_frame, values=options, width=20)
-                entrada.current(0)
-            else:
-                entrada = tk.Entry(form_frame, width=22)
-            
-            entrada.grid(row=i, column=1, sticky="w", padx=10, pady=8)
-            entradas[key] = entrada
-        
-        # Botões
-        botoes_frame = tk.Frame(janela)
-        botoes_frame.pack(pady=15)
-        
-        tk.Button(botoes_frame, text="Cancelar", command=janela.destroy, 
-                  width=10).pack(side=tk.LEFT, padx=10)
-        
-        def salvar():
-            # Obter dados do formulário
-            dados = {
-                'descricao': entradas['descricao'].get(),
-                'valor': entradas['valor'].get().replace(',', '.'),
-                'data': entradas['data'].get(),
-                'tag': entradas['tag'].get(),
-                'banco': entradas['banco'].get()
-            }
-            
-            # Criar e validar transação
-            transacao = Transacao(**dados)
-            if not transacao.validar():
-                messagebox.showwarning("Campos inválidos", 
-                                      "Por favor, preencha todos os campos corretamente.")
-                return
-            
-            # Adicionar transação
-            try:
-                self.controller.adicionar_transacao(transacao)
-                messagebox.showinfo("Sucesso", "Transação adicionada com sucesso!")
-                janela.destroy()
-                self._carregar_transacoes()
-            except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao adicionar transação: {str(e)}")
-        
-        tk.Button(botoes_frame, text="Salvar", command=salvar, 
-                  bg="#4CAF50", fg="white", width=10).pack(side=tk.LEFT, padx=10)
+    def _arredondar_widget(self, widget, radius=10):
+        """Simula cantos arredondados em um widget"""
+        # Nota: Esta é uma simulação visual. Em uma aplicação real,
+        # seria melhor usar uma biblioteca como customtkinter ou
+        # implementar uma solução mais robusta.
+        widget.config(highlightbackground=widget["bg"], 
+                     highlightcolor=widget["bg"],
+                     highlightthickness=1,
+                     bd=0)
     
-    def _abrir_janela_editar(self):
-        """Abre janela para editar transação selecionada"""
-        # Verificar se há uma seleção
-        selected_index = self.tree.curselection()
-        if not selected_index:
-            messagebox.showwarning("Nenhuma seleção", "Selecione uma transação para editar.")
-            return
-        
-        index = selected_index[0]
-        despesa = self.despesas_filtradas[index]
-        
-        # Criar janela
-        janela = tk.Toplevel(self.main_content)
-        janela.title("Editar Transação")
-        janela.geometry("400x350")
-        janela.resizable(False, False)
-        
-        # Centralizar na tela
-        janela.update_idletasks()
-        width = janela.winfo_width()
-        height = janela.winfo_height()
-        x = (janela.winfo_screenwidth() // 2) - (width // 2)
-        y = (janela.winfo_screenheight() // 2) - (height // 2)
-        janela.geometry('{}x{}+{}+{}'.format(width, height, x, y))
-        
-        # Criar formulário
-        form_frame = tk.Frame(janela)
-        form_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
-        
-        # Campos do formulário
-        campos = [
-            ("Descrição:", "descricao", None, despesa['descricao']),
-            ("Valor:", "valor", None, str(despesa['valor'])),
-            ("Data:", "data", None, despesa['data']),
-            ("Tag:", "tag", self.opcoes_tag, despesa['tag']),
-            ("Banco:", "banco", None, despesa['banco'])
-        ]
-        
-        entradas = {}
-        
-        for i, (label_text, key, options, valor) in enumerate(campos):
-            tk.Label(form_frame, text=label_text).grid(row=i, column=0, sticky="e", padx=10, pady=8)
-            
-            if key == "data":
-                entrada = DateEntry(form_frame, date_pattern="dd/mm/yyyy", width=20)
-                entrada.set_date(valor)
-            elif options:
-                entrada = ttk.Combobox(form_frame, values=options, width=20)
-                if valor in options:
-                    entrada.set(valor)
-                else:
-                    entrada.current(0)
-            else:
-                entrada = tk.Entry(form_frame, width=22)
-                entrada.insert(0, valor)
-            
-            entrada.grid(row=i, column=1, sticky="w", padx=10, pady=8)
-            entradas[key] = entrada
-        
-        # Botões
-        botoes_frame = tk.Frame(janela)
-        botoes_frame.pack(pady=15)
-        
-        tk.Button(botoes_frame, text="Cancelar", command=janela.destroy, 
-                  width=10).pack(side=tk.LEFT, padx=10)
-        
-        def salvar():
-            # Obter dados do formulário
-            dados = {
-                'descricao': entradas['descricao'].get(),
-                'valor': entradas['valor'].get().replace(',', '.'),
-                'data': entradas['data'].get(),
-                'tag': entradas['tag'].get(),
-                'banco': entradas['banco'].get()
-            }
-            
-            # Criar e validar transação
-            transacao = Transacao(**dados)
-            if not transacao.validar():
-                messagebox.showwarning("Campos inválidos", 
-                                      "Por favor, preencha todos os campos corretamente.")
-                return
-            
-            # Editar transação
-            try:
-                self.controller.editar_transacao(index, transacao)
-                messagebox.showinfo("Sucesso", "Transação atualizada com sucesso!")
-                janela.destroy()
-                self._carregar_transacoes()
-            except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao atualizar transação: {str(e)}")
-        
-        tk.Button(botoes_frame, text="Salvar", command=salvar, 
-                  bg="#4CAF50", fg="white", width=10).pack(side=tk.LEFT, padx=10)
-    
-    def _remover_transacao(self):
-        """Remove a transação selecionada"""
-        # Verificar se há uma seleção
-        selected_index = self.tree.curselection()
-        if not selected_index:
-            messagebox.showwarning("Nenhuma seleção", "Selecione uma transação para remover.")
-            return
-        
-        index = selected_index[0]
-        
-        # Confirmar remoção
-        confirm = messagebox.askyesno("Confirmar", "Tem certeza que deseja remover esta transação?")
-        if not confirm:
-            return
-        
-        # Remover transação
-        try:
-            self.controller.remover_transacao(index)
-            messagebox.showinfo("Sucesso", "Transação removida com sucesso!")
-            self._carregar_transacoes()
-        except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao remover transação: {str(e)}")
-    
-    def _exportar_csv(self):
-        """Exporta as transações para um arquivo CSV"""
-        # Obter caminho do arquivo
-        caminho = filedialog.asksaveasfilename(
-            defaultextension=".csv",
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
-        )
-        
-        if not caminho:
-            return
-        
-        # Obter filtros atuais
-        filtros = {
-            'data_inicio': self.filtro_data_inicio.get(),
-            'data_fim': self.filtro_data_fim.get(),
-            'tag': self.filtro_tag.get(),
-            'banco': self.filtro_banco.get(),
-            'busca_descricao': self.filtro_descricao.get(),
-            'ordenar_por': self.sort_by.get()
-        }
-        
-        # Mostrar indicador de progresso
-        progresso = tk.Toplevel(self.main_content)
-        progresso.title("Exportando...")
-        progresso.geometry("300x100")
-        progresso.resizable(False, False)
-        
-        # Centralizar na tela
-        progresso.update_idletasks()
-        width = progresso.winfo_width()
-        height = progresso.winfo_height()
-        x = (progresso.winfo_screenwidth() // 2) - (width // 2)
-        y = (progresso.winfo_screenheight() // 2) - (height // 2)
-        progresso.geometry('{}x{}+{}+{}'.format(width, height, x, y))
-        
-        tk.Label(progresso, text="Exportando dados, aguarde...", 
-                 font=("Arial", 12)).pack(pady=20)
-        
-        # Função para executar em thread separada
-        def executar_exportacao():
-            try:
-                sucesso = self.controller.exportar_para_csv(caminho, filtros)
-                # Atualizar UI na thread principal
-                self.main_content.after(0, lambda: self._finalizar_exportacao(progresso, sucesso))
-            except Exception as e:
-                self.main_content.after(0, lambda: self._finalizar_exportacao(
-                    progresso, False, str(e)))
-        
-        # Iniciar thread
-        thread = threading.Thread(target=executar_exportacao)
-        thread.daemon = True
-        thread.start()
-    
-    def _finalizar_exportacao(self, janela_progresso, sucesso, erro=None):
-        """Finaliza o processo de exportação"""
-        janela_progresso.destroy()
-        
-        if sucesso:
-            messagebox.showinfo("Exportado", "Transações exportadas com sucesso!")
-        else:
-            mensagem = "Falha ao exportar transações."
-            if erro:
-                mensagem += f"\nErro: {erro}"
-            messagebox.showerror("Erro", mensagem)
-    
-    def _mostrar_resumo(self):
-        """Mostra um resumo gráfico das transações"""
-        # Obter filtros atuais
-        filtros = {
-            'data_inicio': self.filtro_data_inicio.get(),
-            'data_fim': self.filtro_data_fim.get(),
-            'tag': self.filtro_tag.get(),
-            'banco': self.filtro_banco.get(),
-            'busca_descricao': self.filtro_descricao.get(),
-            'ordenar_por': self.sort_by.get()
-        }
-        
-        # Obter resumo
-        resumo = self.controller.obter_resumo(filtros)
-        
-        if not resumo['transacoes']:
-            messagebox.showinfo("Sem dados", "Não há transações para mostrar no resumo.")
-            return
-        
-        # Criar janela
-        janela = tk.Toplevel(self.main_content)
-        janela.title("Resumo Financeiro")
-        janela.geometry("800x600")
-        
-        # Cabeçalho
-        tk.Label(janela, text="Resumo Financeiro", 
-                 font=("Arial", 16, "bold")).pack(pady=10)
-        
-        tk.Label(janela, text=f"Total: R$ {resumo['total']:.2f}", 
-                 font=("Arial", 14)).pack(pady=5)
-        
-        # Criar gráficos
-        fig = plt.figure(figsize=(10, 8))
-        
-        # Gráfico de pizza por tag
-        ax1 = fig.add_subplot(221)
-        if resumo['por_tag']:
-            labels = list(resumo['por_tag'].keys())
-            sizes = list(resumo['por_tag'].values())
-            ax1.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
-            ax1.axis('equal')
-            ax1.set_title('Distribuição por Tag')
-        
-        # Gráfico de pizza por banco
-        ax2 = fig.add_subplot(222)
-        if resumo['por_banco']:
-            labels = list(resumo['por_banco'].keys())
-            sizes = list(resumo['por_banco'].values())
-            ax2.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
-            ax2.axis('equal')
-            ax2.set_title('Distribuição por Banco')
-        
-        # Adicionar canvas para exibir os gráficos
-        canvas = FigureCanvasTkAgg(fig, master=janela)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-        
-        # Botão para fechar
-        tk.Button(janela, text="Fechar", command=janela.destroy, 
-                  width=10).pack(pady=10)
-
-
-def mostrar_transacoes(main_content, database):
-    """Função principal para mostrar a aba de transações"""
-    controller = TransacoesController(database)
-    ui = TransacoesUI(main_content, controller)
-    ui.mostrar()
+    def _carregar_dados(self):
+        """Carrega os dados iniciais"""
+        # Aqui você conectaria com seu controller para buscar dados reais
+        pass
