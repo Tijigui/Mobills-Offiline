@@ -1,11 +1,11 @@
 {
     "despesas": [
         {
-            "descricao": "Olhaaa",
-            "valor": 10.0,
+            "descricao": "pizza",
+            "valor": 10.8,
             "data": "21/04/2025",
-            "tag": "Pix",
-            "banco": "Japones"
+            "tag": "Compras",
+            "banco": "Nubank"
         },
         {
             "descricao": "Olhaaa",
@@ -16,13 +16,6 @@
         }
     ],
     "contas": [
-        {
-            "nome": "Banco do Brasil",
-            "saldo": 111.0,
-            "descricao": "Aquela lá",
-            "tipo": "VR/VA",
-            "cor": "#8000ff"
-        },
         {
             "nome": "Nubank",
             "saldo": 10.0,
@@ -54,6 +47,15 @@
             "tipo": "Dinheiro",
             "cor": "#43A047",
             "data_criacao": "21/04/2025"
+        },
+        {
+            "nome": "Caixa",
+            "saldo": 1111.0,
+            "saldo_inicial": 1111.0,
+            "descricao": "11111",
+            "tipo": "Investimentos",
+            "cor": "#FFEB3B",
+            "data_criacao": "27/04/2025"
         }
     ],
     "cartoes": []
