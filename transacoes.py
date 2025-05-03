@@ -11,7 +11,6 @@ class TransacoesModernUI(ttk.Frame):
     def __init__(self, parent, database=None):
         super().__init__(parent)
         
-        print("Inicializando TransacoesModernUI...")
         
         # Se database for uma string, considere como o caminho do arquivo
         if isinstance(database, str):
@@ -21,7 +20,7 @@ class TransacoesModernUI(ttk.Frame):
         else:
             self.database = database
             self.json_file = "despesas.json"  # Arquivo padrão como fallback
-            print(f"Usando objeto database, arquivo fallback: {self.json_file}")
+            
         
         # Inicializar todos os atributos importantes
         self.tag_form_entry = None
@@ -44,7 +43,6 @@ class TransacoesModernUI(ttk.Frame):
         
     def setup_ui(self):
         """Configura a interface do usuário"""
-        print("Configurando interface do usuário...")
         
         # Configurar o estilo
         style = ThemedStyle(self)
@@ -53,7 +51,7 @@ class TransacoesModernUI(ttk.Frame):
         # Configurar o locale para formato brasileiro
         try:
             locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
-            print("Locale configurado para pt_BR.UTF-8")
+            
         except:
             try:
                 locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil.1252')
@@ -179,7 +177,7 @@ class TransacoesModernUI(ttk.Frame):
         self.transaction_tree.bind("<Button-3>", self.show_context_menu)
         self.transaction_tree.bind("<Double-1>", lambda event: self.edit_selected())
         
-        print("Interface configurada com sucesso")
+        
         
     def show_context_menu(self, event):
         """Mostra o menu de contexto"""
@@ -192,7 +190,7 @@ class TransacoesModernUI(ttk.Frame):
         """Lê os dados do arquivo JSON ou do banco de dados"""
         try:
             if self.database:
-                print("Tentando ler dados do objeto database...")
+                
                 try:
                     # Tente diferentes métodos possíveis
                     if hasattr(self.database, 'get_data'):
@@ -211,11 +209,11 @@ class TransacoesModernUI(ttk.Frame):
                         print(f"Dados lidos do método read: {data}")
                         return data
                     else:
-                        print("Nenhum método conhecido encontrado no objeto database")
+                        
                         # Se nenhum método conhecido estiver disponível, tente acessar o arquivo diretamente
                         with open(self.json_file, 'r', encoding='utf-8') as file:
                             data = json.load(file)
-                            print(f"Dados lidos do arquivo: {data}")
+                            
                             return data
                 except Exception as e:
                     print(f"Erro ao ler dados do banco de dados: {e}")
@@ -291,14 +289,14 @@ class TransacoesModernUI(ttk.Frame):
     def load_transactions(self):
         """Carrega as transações do arquivo JSON ou do banco de dados e exibe na treeview"""
         try:
-            print("Carregando transações...")
+            
             data = self.read_json_data()
-            print(f"Dados carregados: {data}")
+            
             
             # Verificar se 'despesas' existe no dicionário
             if "despesas" in data:
                 self.despesas = data["despesas"]
-                print(f"Número de transações carregadas: {len(self.despesas)}")
+                
             else:
                 print("Chave 'despesas' não encontrada nos dados")
                 self.despesas = []
@@ -315,7 +313,7 @@ class TransacoesModernUI(ttk.Frame):
     def display_transactions(self, transactions):
         """Exibe as transações na treeview"""
         # Limpar a treeview
-        print(f"Exibindo {len(transactions)} transações")
+    
         for item in self.transaction_tree.get_children():
             self.transaction_tree.delete(item)
         
@@ -333,7 +331,7 @@ class TransacoesModernUI(ttk.Frame):
             if tipo == "Despesa":
                 valor_formatado = f"-{valor_formatado}"
             
-            print(f"Adicionando transação {i}: {data}, {tipo}, {descricao}, {valor_formatado}")
+            
             self.transaction_tree.insert("", tk.END, values=(data, tipo, descricao, valor_formatado, banco, categoria), tags=(str(i),))
             
             # Colorir as linhas baseado no tipo
