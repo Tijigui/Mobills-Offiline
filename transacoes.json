@@ -1,0 +1,26 @@
+[
+    {
+        "valor": 50.0,
+        "categoria": "Alimentação",
+        "descricao": "Almoço",
+        "data": "2025-05-03"
+    },
+    {
+        "valor": 50.0,
+        "categoria": "Alimentação",
+        "descricao": "Almoço",
+        "data": "2025-05-03"
+    },
+    {
+        "valor": 100.0,
+        "categoria": "Transporte",
+        "descricao": "Uber",
+        "data": "2025-05-03"
+    },
+    {
+        "valor": 30.0,
+        "categoria": "Lazer",
+        "descricao": "Cinema",
+        "data": "2025-05-03"
+    }
+]

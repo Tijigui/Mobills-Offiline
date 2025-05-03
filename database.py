@@ -21,6 +21,16 @@ ACCOUNT_TYPES = [
     "Outros"
 ]
 
+EXPENSE_CATEGORIES = [
+    "Alimentação",
+    "Transporte",
+    "Moradia",
+    "Saúde",
+    "Lazer",
+    "Educação",
+    "Outros"
+]
+
 class Database:
     def __init__(self, arquivo_dados="dados.json"):
         self.arquivo_dados = arquivo_dados
@@ -114,15 +124,23 @@ class Database:
                 return True
         return False
     
+    def calcular_saldo_total(self):
+        """Calcula o saldo total de todas as contas"""
+        saldo_total = 0
+        for conta in self.dados['contas']:
+            saldo_total += conta['saldo']
+        return saldo_total
+    
     # Métodos para despesas
-    def adicionar_despesa(self, descricao, valor, data, tag, banco):
+    def adicionar_despesa(self, descricao, valor, data, tag, banco, categoria):
         """Adiciona uma nova despesa"""
         nova_despesa = {
             "descricao": descricao,
             "valor": float(valor),
             "data": data,
             "tag": tag,
-            "banco": banco
+            "banco": banco,
+            "categoria": categoria
         }
         
         if 'despesas' not in self.dados:
@@ -132,7 +150,7 @@ class Database:
         self.salvar_dados()
         return True
     
-    def listar_despesas(self, data_inicio=None, data_fim=None, tag=None, banco=None, busca_descricao=None, ordenar_por="data"):
+    def listar_despesas(self, data_inicio=None, data_fim=None, tag=None, banco=None, busca_descricao=None, categoria=None, ordenar_por="data"):
         """Lista despesas com filtros opcionais"""
         if 'despesas' not in self.dados:
             return []
@@ -163,6 +181,9 @@ class Database:
         if busca_descricao and busca_descricao.strip():
             despesas_filtradas = [d for d in despesas_filtradas if busca_descricao.lower() in d['descricao'].lower()]
         
+        if categoria and categoria.strip():
+            despesas_filtradas = [d for d in despesas_filtradas if categoria.lower() in d['categoria'].lower()]
+        
         # Ordenar resultados
         if ordenar_por == "data":
             despesas_filtradas.sort(key=lambda x: datetime.strptime(x['data'], "%d/%m/%Y"), reverse=True)
@@ -173,7 +194,7 @@ class Database:
         
         return despesas_filtradas
     
-    def editar_despesa(self, indice, descricao, valor, data, tag, banco):
+    def editar_despesa(self, indice, descricao, valor, data, tag, banco, categoria):
         """Edita uma despesa existente pelo índice"""
         if 'despesas' not in self.dados or indice >= len(self.dados['despesas']):
             return False
@@ -183,7 +204,8 @@ class Database:
             "valor": float(valor),
             "data": data,
             "tag": tag,
-            "banco": banco
+            "banco": banco,
+            "categoria": categoria
         }
         
         self.salvar_dados()
@@ -198,14 +220,14 @@ class Database:
         self.salvar_dados()
         return True
     
-    def exportar_para_csv(self, caminho, data_inicio=None, data_fim=None, tag=None, banco=None, busca_descricao=None, ordenar_por="data"):
+    def exportar_para_csv(self, caminho, data_inicio=None, data_fim=None, tag=None, banco=None, busca_descricao=None, categoria=None, ordenar_por="data"):
         """Exporta despesas para CSV com filtros opcionais"""
-        despesas = self.listar_despesas(data_inicio, data_fim, tag, banco, busca_descricao, ordenar_por)
+        despesas = self.listar_despesas(data_inicio, data_fim, tag, banco, busca_descricao, categoria, ordenar_por)
         
         try:
             with open(caminho, 'w', newline='', encoding='utf-8') as arquivo:
                 writer = csv.writer(arquivo)
-                writer.writerow(['Descrição', 'Valor', 'Data', 'Tag', 'Banco'])
+                writer.writerow(['Descrição', 'Valor', 'Data', 'Tag', 'Banco', 'Categoria'])
                 
                 for despesa in despesas:
                     writer.writerow([
@@ -213,7 +235,8 @@ class Database:
                         despesa['valor'],
                         despesa['data'],
                         despesa['tag'],
-                        despesa['banco']
+                        despesa['banco'],
+                        despesa['categoria']
                     ])
             return True
         except Exception as e:
