@@ -2,44 +2,11 @@
     "despesas": [
         {
             "data": "03/05/2025",
-            "tipo": "Despesa",
-            "descricao": "Compra supermercado",
-            "valor": 150.0,
-            "banco": "Banco do Brasil",
-            "categoria": ""
-        },
-        {
-            "data": "03/05/2025",
-            "tipo": "Despesa",
-            "descricao": "Teste",
-            "valor": 10.0,
-            "banco": "Itau",
-            "categoria": "Lazer"
-        },
-        {
-            "data": "03/05/2025",
             "tipo": "Receita",
             "descricao": "Teste",
-            "valor": 1000.0,
-            "banco": "Itau",
-            "categoria": "Salario"
-        }
-    ],
-    "contas": [
-        {
-            "nome": "Banco do Brasil",
-            "saldo": 1000.0
-        },
-        {
-            "nome": "Itaú",
-            "saldo": 500.0
-        }
-    ],
-    "cartoes_de_credito": [
-        {
-            "nome": "Cartão Visa",
-            "limite": 2000.0,
-            "fatura_atual": 500.0
+            "valor": 111.0,
+            "banco": "wwww",
+            "categoria": "Lazer"
         }
     ]
 }
