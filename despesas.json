@@ -3,10 +3,11 @@
         {
             "data": "03/05/2025",
             "tipo": "Receita",
-            "descricao": "Teste",
-            "valor": 111.0,
-            "banco": "wwww",
-            "categoria": "Lazer"
+            "situacao": "Cancelado",
+            "descricao": "Aliexpress",
+            "valor": 250.0,
+            "banco": "Nubank",
+            "categoria": "Alimentação"
         }
     ]
 }
