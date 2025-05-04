@@ -44,7 +44,6 @@ class TransacoesModernUI(ttk.Frame):
         self.current_edit_index = None
         self.filter_panel_visible = False
         self.filter_panel = None
-        self.add_button = None
         self.cancel_button = None
         self.context_menu = None
         
@@ -105,16 +104,6 @@ class TransacoesModernUI(ttk.Frame):
         self.transaction_menu.add_command(label="Despesas", command=lambda: self.filter_by_transaction_type("Despesa"))
         self.transaction_menu.add_command(label="Receitas", command=lambda: self.filter_by_transaction_type("Receita"))
         self.transaction_menu.add_command(label="Transferências", command=lambda: self.filter_by_transaction_type("Transferência"))
-
-        # Botão de adicionar transação
-        self.add_button = ttk.Button(self.header_frame, text="+ Nova Transação", 
-                                    command=self.add_transaction)
-        self.add_button.pack(side=tk.RIGHT, padx=5)
-
-        # Botão de cancelar (inicialmente oculto)
-        self.cancel_button = ttk.Button(self.header_frame, text="Cancelar", 
-                                       command=self.cancel_edit)
-        # Não empacotar ainda - será mostrado quando necessário
 
         # Botão de filtro no canto superior direito
         icon_path = "icons/filter_icon.png"  # Defina o caminho para seu ícone
@@ -222,8 +211,8 @@ class TransacoesModernUI(ttk.Frame):
         # Vincular o clique direito ao menu de contexto
         self.transaction_tree.bind("<Button-3>", self.show_context_menu)
         
-        # Formulário para adicionar/editar transações
-        self.form_frame = ttk.LabelFrame(self.main_frame, text="Nova Transação")
+        # Formulário para editar transações (não para adicionar novas)
+        self.form_frame = ttk.LabelFrame(self.main_frame, text="Editar Transação")
         self.form_frame.pack(fill=tk.X, padx=10, pady=10)
         
         # Grid para o formulário
@@ -271,11 +260,14 @@ class TransacoesModernUI(ttk.Frame):
         button_frame = ttk.Frame(self.form_frame)
         button_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
         
-        self.save_button = ttk.Button(button_frame, text="Adicionar", command=self.save_transaction)
+        self.save_button = ttk.Button(button_frame, text="Salvar", command=self.save_transaction)
         self.save_button.pack(side=tk.LEFT, padx=5)
         
         self.cancel_button = ttk.Button(button_frame, text="Cancelar", command=self.cancel_edit)
-        # Não empacotar ainda - será mostrado quando necessário
+        self.cancel_button.pack(side=tk.LEFT, padx=5)
+        
+        # Inicialmente esconder o formulário de edição
+        self.form_frame.pack_forget()
     
     def on_transaction_type_changed(self, *args):
         """Ajusta o formulário com base no tipo de transação selecionado"""
@@ -609,170 +601,73 @@ class TransacoesModernUI(ttk.Frame):
             print("Formato de dados inválido:", type(self.despesas))
             self.display_transactions([])  # Exibir lista vazia
         
-        # Atualizar opções de filtro
+                # Atualizar opções de filtro
         self.update_filter_options()
     
     def display_transactions(self, transactions):
-        """
-        Exibe as transações na treeview
+        """Exibe as transações na Treeview"""
+        # Limpar a árvore
+        for item in self.transaction_tree.get_children():
+            self.transaction_tree.delete(item)
         
-        Args:
-            transactions (list): Lista de transações para exibir
-        """
-        try:
-            # Limpar a árvore atual
-            for item in self.transaction_tree.get_children():
-                self.transaction_tree.delete(item)
-            
-            # Adicionar as transações à árvore
-            for i, transaction in enumerate(transactions):
-                # Obter os valores para cada coluna
-                data = transaction.get("data", "")
-                tipo = transaction.get("tipo", "")
-                descricao = transaction.get("descricao", "")
-                valor = transaction.get("valor", 0)
-                banco = transaction.get("banco", "")
-                categoria = transaction.get("categoria", "")
-                
-                # Formatar o valor como moeda
+        # Adicionar transações à árvore
+        for i, transaction in enumerate(transactions):
+            # Formatar o valor
+            valor = transaction.get("valor", 0)
+            if isinstance(valor, str):
                 try:
-                    valor_formatado = f"R$ {float(valor):.2f}"
-                    # Adicionar sinal negativo para despesas
-                    if tipo == "Despesa":
-                        valor_formatado = f"-{valor_formatado}"
+                    valor = float(valor.replace("R$", "").replace(".", "").replace(",", ".").strip())
                 except:
-                    valor_formatado = f"R$ {valor}"
-                
-                # Inserir na árvore
-                self.transaction_tree.insert("", tk.END, iid=str(i), values=(
-                    data, tipo, descricao, valor_formatado, banco, categoria
-                ), tags=(tipo.lower(),))
+                    valor = 0
             
-            # Configurar cores para diferentes tipos de transação
-            self.transaction_tree.tag_configure("despesa", foreground="red")
-            self.transaction_tree.tag_configure("receita", foreground="green")
-            self.transaction_tree.tag_configure("transferência", foreground="blue")
-        except Exception as e:
-            print(f"Erro ao exibir transações: {e}")
+            # Formatar o valor como moeda
+            valor_formatado = f"R$ {valor:.2f}".replace(".", ",")
+            
+            # Determinar a cor com base no tipo
+            tipo = transaction.get("tipo", "")
+            tag = f"tipo_{tipo.lower()}"
+            
+            # Inserir na árvore
+            self.transaction_tree.insert(
+                "", "end", iid=str(i), values=(
+                    transaction.get("data", ""),
+                    tipo,
+                    transaction.get("descricao", ""),
+                    valor_formatado,
+                    transaction.get("banco", ""),
+                    transaction.get("categoria", "")
+                ),
+                tags=(tag,)
+            )
+        
+        # Configurar cores para os diferentes tipos
+        self.transaction_tree.tag_configure("tipo_despesa", foreground="red")
+        self.transaction_tree.tag_configure("tipo_receita", foreground="green")
+        self.transaction_tree.tag_configure("tipo_transferência", foreground="blue")
     
-    def add_transaction(self):
-        """Prepara o formulário para adicionar uma nova transação"""
-        # Limpar os campos do formulário
-        self.date_form_entry.set_date(datetime.now())
-        self.transaction_type_var.set("Despesa")
-        self.descricao_form_entry.delete(0, tk.END)
-        self.valor_form_entry.delete(0, tk.END)
-        self.banco_form_entry.delete(0, tk.END)
-        self.tag_form_entry.set("")
+    def search_transactions(self, event=None):
+        """Filtra as transações com base no texto de pesquisa"""
+        search_term = self.search_entry.get().lower()
         
-        # Atualizar o texto do botão e do formulário
-        self.form_frame.config(text="Nova Transação")
-        self.save_button.config(text="Adicionar")
+        if not search_term:
+            # Se o campo de pesquisa estiver vazio, mostrar todas as transações
+            transactions = self.despesas.get("despesas", []) if isinstance(self.despesas, dict) else self.despesas
+            self.display_transactions(transactions)
+            return
         
-        # Mostrar o botão de cancelar
-        self.cancel_button.pack(side=tk.LEFT, padx=5)
+        # Filtrar as transações
+        transactions = self.despesas.get("despesas", []) if isinstance(self.despesas, dict) else self.despesas
+        filtered_transactions = []
         
-        # Desativar o modo de edição
-        self.edit_mode = False
-        self.current_edit_index = None
+        for transaction in transactions:
+            # Verificar se o termo de pesquisa está em algum campo
+            for field in ["descricao", "banco", "categoria"]:
+                if field in transaction and search_term in str(transaction.get(field, "")).lower():
+                    filtered_transactions.append(transaction)
+                    break
         
-        # Esconder campos de transferência se existirem
-        if hasattr(self, 'transfer_frame'):
-            self.transfer_frame.pack_forget()
-    
-    def save_transaction(self):
-        """Salva a transação atual (nova ou editada)"""
-        # Obter os valores do formulário
-        try:
-            data = self.date_form_entry.get()
-            tipo = self.transaction_type_var.get()
-            descricao = self.descricao_form_entry.get()
-            valor_str = self.valor_form_entry.get().replace(',', '.')
-            
-            # Validar o valor
-            try:
-                valor = float(valor_str)
-            except ValueError:
-                messagebox.showerror("Erro", "Valor inválido. Use apenas números e ponto decimal.")
-                return
-            
-            banco = self.banco_form_entry.get()
-            categoria = self.tag_form_entry.get()
-            
-            # Validar campos obrigatórios
-            if not descricao:
-                messagebox.showerror("Erro", "Descrição é obrigatória.")
-                return
-            
-            if not banco:
-                messagebox.showerror("Erro", "Banco/Conta é obrigatório.")
-                return
-            
-            # Criar o objeto de transação
-            transaction = {
-                "data": data,
-                "tipo": tipo,
-                "descricao": descricao,
-                "valor": valor,
-                "banco": banco,
-                "categoria": categoria
-            }
-            
-            # Se for uma transferência, adicionar contas de origem e destino
-            if tipo == "Transferência" and hasattr(self, 'transfer_frame'):
-                transaction["conta_origem"] = self.from_account_entry.get()
-                transaction["conta_destino"] = self.to_account_entry.get()
-                
-                # Validar campos de transferência
-                if not transaction["conta_origem"] or not transaction["conta_destino"]:
-                    messagebox.showerror("Erro", "Contas de origem e destino são obrigatórias para transferências.")
-                    return
-            
-            # Verificar se estamos editando ou adicionando
-            if self.edit_mode and self.current_edit_index is not None:
-                # Modo de edição - atualizar transação existente
-                if isinstance(self.despesas, dict) and "despesas" in self.despesas:
-                    self.despesas["despesas"][self.current_edit_index] = transaction
-                elif isinstance(self.despesas, list):
-                    self.despesas[self.current_edit_index] = transaction
-            else:
-                # Modo de adição - adicionar nova transação
-                if isinstance(self.despesas, dict) and "despesas" in self.despesas:
-                    self.despesas["despesas"].append(transaction)
-                elif isinstance(self.despesas, list):
-                    self.despesas.append(transaction)
-                else:
-                    # Se não houver estrutura de dados adequada, criar uma
-                    self.despesas = {"despesas": [transaction]}
-            
-            # Salvar os dados
-            self.write_json_data(self.despesas)
-            
-            # Atualizar a lista de transações
-            self.update_transaction_list()
-            
-            # Limpar o formulário
-            self.add_transaction()  # Reutilizar para limpar o formulário
-            
-            # Ocultar o botão de cancelar
-            self.cancel_button.pack_forget()
-            
-        except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao salvar transação: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    def cancel_edit(self):
-        """Cancela a edição atual e limpa o formulário"""
-        # Limpar o formulário
-        self.add_transaction()
-        
-        # Ocultar o botão de cancelar
-        self.cancel_button.pack_forget()
-        
-        # Desativar o modo de edição
-        self.edit_mode = False
-        self.current_edit_index = None
+        # Exibir as transações filtradas
+        self.display_transactions(filtered_transactions)
     
     def edit_selected(self):
         """Edita a transação selecionada"""
@@ -782,74 +677,33 @@ class TransacoesModernUI(ttk.Frame):
             return
         
         # Obter o índice da transação selecionada
-        item_id = selected_items[0]
-        index = int(item_id)
+        selected_index = int(selected_items[0])
         
-        # Obter a transação
-        transaction = None
-        if isinstance(self.despesas, dict) and "despesas" in self.despesas:
-            if 0 <= index < len(self.despesas["despesas"]):
-                transaction = self.despesas["despesas"][index]
+        # Verificar se os dados são um dicionário com a chave 'despesas'
+        if isinstance(self.despesas, dict) and 'despesas' in self.despesas:
+            if selected_index >= len(self.despesas['despesas']):
+                messagebox.showerror("Erro", "Índice de transação inválido.")
+                return
+            transaction = self.despesas['despesas'][selected_index]
+        # Se for uma lista direta
         elif isinstance(self.despesas, list):
-            if 0 <= index < len(self.despesas):
-                transaction = self.despesas[index]
-        
-        if not transaction:
-            messagebox.showerror("Erro", "Transação não encontrada.")
+            if selected_index >= len(self.despesas):
+                messagebox.showerror("Erro", "Índice de transação inválido.")
+                return
+            transaction = self.despesas[selected_index]
+        else:
+            messagebox.showerror("Erro", "Formato de dados inválido.")
             return
         
         # Preencher o formulário com os dados da transação
-        try:
-            # Atualizar o tipo primeiro para garantir que os campos certos estejam visíveis
-            self.transaction_type_var.set(transaction.get("tipo", "Despesa"))
-            
-            # Atualizar os campos do formulário
-            data_str = transaction.get("data", "")
-            if data_str:
-                try:
-                    # Tentar converter a string de data para objeto datetime
-                    day, month, year = map(int, data_str.split("/"))
-                    self.date_form_entry.set_date(datetime(year, month, day))
-                except:
-                    # Se falhar, usar a data atual
-                    self.date_form_entry.set_date(datetime.now())
-            else:
-                self.date_form_entry.set_date(datetime.now())
-            
-            self.descricao_form_entry.delete(0, tk.END)
-            self.descricao_form_entry.insert(0, transaction.get("descricao", ""))
-            
-            self.valor_form_entry.delete(0, tk.END)
-            self.valor_form_entry.insert(0, str(transaction.get("valor", "")))
-            
-            self.banco_form_entry.delete(0, tk.END)
-            self.banco_form_entry.insert(0, transaction.get("banco", ""))
-            
-            self.tag_form_entry.set(transaction.get("categoria", ""))
-            
-            # Se for transferência, preencher campos específicos
-            if transaction.get("tipo") == "Transferência" and hasattr(self, 'transfer_frame'):
-                self.from_account_entry.delete(0, tk.END)
-                self.from_account_entry.insert(0, transaction.get("conta_origem", ""))
-                
-                self.to_account_entry.delete(0, tk.END)
-                self.to_account_entry.insert(0, transaction.get("conta_destino", ""))
-            
-            # Atualizar o texto do botão e do formulário
-            self.form_frame.config(text="Editar Transação")
-            self.save_button.config(text="Salvar")
-            
-            # Mostrar o botão de cancelar
-            self.cancel_button.pack(side=tk.LEFT, padx=5)
-            
-            # Ativar o modo de edição
-            self.edit_mode = True
-            self.current_edit_index = index
-            
-        except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao carregar dados para edição: {e}")
-            import traceback
-            traceback.print_exc()
+        self.fill_form(transaction)
+        
+        # Mostrar o formulário
+        self.form_frame.pack(fill=tk.X, padx=10, pady=10)
+        
+        # Ativar o modo de edição e armazenar o índice atual
+        self.edit_mode = True
+        self.current_edit_index = selected_index
     
     def delete_selected(self):
         """Exclui a transação selecionada"""
@@ -859,51 +713,179 @@ class TransacoesModernUI(ttk.Frame):
             return
         
         # Confirmar exclusão
-        if not messagebox.askyesno("Confirmar", "Tem certeza que deseja excluir esta transação?"):
+        if not messagebox.askyesno("Confirmação", "Tem certeza que deseja excluir esta transação?"):
             return
         
         # Obter o índice da transação selecionada
-        item_id = selected_items[0]
-        index = int(item_id)
+        selected_index = int(selected_items[0])
         
         # Excluir a transação
-        try:
-            if isinstance(self.despesas, dict) and "despesas" in self.despesas:
-                if 0 <= index < len(self.despesas["despesas"]):
-                    del self.despesas["despesas"][index]
-            elif isinstance(self.despesas, list):
-                if 0 <= index < len(self.despesas):
-                    del self.despesas[index]
+        if isinstance(self.despesas, dict) and 'despesas' in self.despesas:
+            if selected_index < len(self.despesas['despesas']):
+                del self.despesas['despesas'][selected_index]
+        elif isinstance(self.despesas, list):
+            if selected_index < len(self.despesas):
+                del self.despesas[selected_index]
+        
+        # Salvar as alterações
+        self.write_json_data(self.despesas)
+        
+        # Atualizar a lista de transações
+        self.update_transaction_list()
+        
+        messagebox.showinfo("Sucesso", "Transação excluída com sucesso!")
+    
+    def fill_form(self, transaction):
+        """Preenche o formulário com os dados da transação"""
+        # Data
+        if "data" in transaction:
+            try:
+                day, month, year = map(int, transaction["data"].split("/"))
+                self.date_form_entry.set_date(datetime(year, month, day))
+            except:
+                self.date_form_entry.set_date(datetime.now())
+        else:
+            self.date_form_entry.set_date(datetime.now())
+        
+        # Tipo
+        tipo = transaction.get("tipo", "Despesa")
+        self.transaction_type_var.set(tipo)
+        
+        # Descrição
+        self.descricao_form_entry.delete(0, tk.END)
+        self.descricao_form_entry.insert(0, transaction.get("descricao", ""))
+        
+        # Valor
+        self.valor_form_entry.delete(0, tk.END)
+        valor = transaction.get("valor", "")
+        if isinstance(valor, (int, float)):
+            valor = f"{valor:.2f}".replace(".", ",")
+        self.valor_form_entry.insert(0, valor)
+        
+        # Banco/Conta
+        self.banco_form_entry.delete(0, tk.END)
+        self.banco_form_entry.insert(0, transaction.get("banco", ""))
+        
+        # Categoria
+        self.tag_form_entry.delete(0, tk.END)
+        self.tag_form_entry.insert(0, transaction.get("categoria", ""))
+        
+        # Se for transferência, preencher os campos adicionais
+        if tipo == "Transferência" and hasattr(self, 'transfer_frame'):
+            self.from_account_entry.delete(0, tk.END)
+            self.from_account_entry.insert(0, transaction.get("conta_origem", ""))
             
-            # Salvar os dados
+            self.to_account_entry.delete(0, tk.END)
+            self.to_account_entry.insert(0, transaction.get("conta_destino", ""))
+    
+    def save_transaction(self):
+        """Salva a transação atual (nova ou editada)"""
+        try:
+            # Obter os dados do formulário
+            date = self.date_form_entry.get_date()
+            date_str = date.strftime("%d/%m/%Y")
+            
+            tipo = self.transaction_type_var.get()
+            descricao = self.descricao_form_entry.get()
+            
+            # Validar e converter o valor
+            valor_str = self.valor_form_entry.get()
+            try:
+                # Converter para float, tratando diferentes formatos
+                valor_str = valor_str.replace("R$", "").strip()
+                valor_str = valor_str.replace(".", "").replace(",", ".")
+                valor = float(valor_str)
+            except ValueError:
+                messagebox.showerror("Erro", "Valor inválido. Use apenas números, ponto ou vírgula.")
+                return
+            
+            banco = self.banco_form_entry.get()
+            categoria = self.tag_form_entry.get()
+            
+            # Criar o dicionário da transação
+            transaction = {
+                "data": date_str,
+                "tipo": tipo,
+                "descricao": descricao,
+                "valor": valor,
+                "banco": banco,
+                "categoria": categoria
+            }
+            
+            # Adicionar campos específicos para transferências
+            if tipo == "Transferência" and hasattr(self, 'transfer_frame'):
+                transaction["conta_origem"] = self.from_account_entry.get()
+                transaction["conta_destino"] = self.to_account_entry.get()
+            
+            # Atualizar ou adicionar a transação
+            if self.edit_mode and self.current_edit_index is not None:
+                # Atualizar transação existente
+                if isinstance(self.despesas, dict) and 'despesas' in self.despesas:
+                    self.despesas['despesas'][self.current_edit_index] = transaction
+                elif isinstance(self.despesas, list):
+                    self.despesas[self.current_edit_index] = transaction
+            else:
+                # Adicionar nova transação
+                if isinstance(self.despesas, dict) and 'despesas' in self.despesas:
+                    self.despesas['despesas'].append(transaction)
+                elif isinstance(self.despesas, list):
+                    self.despesas.append(transaction)
+                else:
+                    self.despesas = {"despesas": [transaction]}
+            
+            # Salvar as alterações
             self.write_json_data(self.despesas)
             
             # Atualizar a lista de transações
             self.update_transaction_list()
             
+            # Limpar o formulário e escondê-lo
+            self.clear_form()
+            self.form_frame.pack_forget()
+            
+            # Resetar o modo de edição
+            self.edit_mode = False
+            self.current_edit_index = None
+            
+            messagebox.showinfo("Sucesso", "Transação salva com sucesso!")
         except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao excluir transação: {e}")
+            messagebox.showerror("Erro", f"Erro ao salvar a transação: {e}")
     
-    def search_transactions(self, event=None):
-        """Pesquisa transações com base no texto inserido"""
-        search_term = self.search_entry.get().lower()
+    def cancel_edit(self):
+        """Cancela a edição atual"""
+        self.clear_form()
+        self.form_frame.pack_forget()
         
-        if not search_term:
-            # Se o campo de pesquisa estiver vazio, mostrar todas as transações
-            transactions = self.despesas.get("despesas", []) if isinstance(self.despesas, dict) else self.despesas
-            self.display_transactions(transactions)
-            return
+        # Resetar o modo de edição
+        self.edit_mode = False
+        self.current_edit_index = None
+    
+    def clear_form(self):
+        """Limpa todos os campos do formulário"""
+        self.date_form_entry.set_date(datetime.now())
+        self.transaction_type_var.set("Despesa")
+        self.descricao_form_entry.delete(0, tk.END)
+        self.valor_form_entry.delete(0, tk.END)
+        self.banco_form_entry.delete(0, tk.END)
+        self.tag_form_entry.delete(0, tk.END)
         
-        # Filtrar transações com base no termo de pesquisa
-        transactions = self.despesas.get("despesas", []) if isinstance(self.despesas, dict) else self.despesas
-        filtered_transactions = []
-        
-        for transaction in transactions:
-            # Verificar se o termo de pesquisa está em algum campo relevante
-            for field in ["descricao", "banco", "categoria"]:
-                if field in transaction and search_term in str(transaction.get(field, "")).lower():
-                    filtered_transactions.append(transaction)
-                    break
-        
-        # Exibir as transações filtradas
-        self.display_transactions(filtered_transactions)
+        # Limpar campos de transferência se existirem
+        if hasattr(self, 'from_account_entry'):
+            self.from_account_entry.delete(0, tk.END)
+        if hasattr(self, 'to_account_entry'):
+            self.to_account_entry.delete(0, tk.END)
+
+# Para teste independente
+if __name__ == "__main__":
+    root = tk.Tk()
+    root.title("Gerenciador de Transações")
+    root.geometry("800x600")
+    
+    # Aplicar um tema mais moderno
+    style = ttk.Style()
+    if "clam" in style.theme_names():
+        style.theme_use("clam")
+    
+    app = TransacoesModernUI(root, "despesas.json")
+    root.mainloop()
+
