@@ -11,7 +11,7 @@ from contas import mostrar_contas
 from dashboard import mostrar_dashboard
 from transacoes import TransacoesModernUI
 from cartoes_creditos import mostrar_cartoes_credito
-from configuracoes import iniciar_modulo_cartoes
+# Removida a importação do módulo configuracoes que não existe
 
 CONFIG_FILE = "config.json"
 
@@ -252,12 +252,18 @@ class MainApplication:
     def show_credit_cards(self):
         """Exibe a tela de cartões de crédito"""
         self.clear_main_content()
-        iniciar_modulo_cartoes(self.main_content, self.database)
+        mostrar_cartoes_credito(self.main_content, self.database)
 
     def show_settings(self):
-        """Exibe a tela de configurações"""
+        """Exibe uma mensagem temporária na tela de configurações"""
         self.clear_main_content()
-        mostrar_configuracoes(self.main_content, self.database)
+        
+        # Título da página
+        tk.Label(self.main_content, text="Configurações", font=("Arial", 24), bg="#ffffff").pack(pady=20)
+        
+        # Mensagem temporária
+        mensagem = "Módulo de configurações em desenvolvimento."
+        tk.Label(self.main_content, text=mensagem, font=("Arial", 12), bg="#ffffff").pack(pady=40)
 
     def on_closing(self):
         """Trata evento de fechamento da janela"""
