@@ -11,7 +11,7 @@ from contas import mostrar_contas
 from dashboard import mostrar_dashboard
 from transacoes import TransacoesModernUI
 from cartoes_creditos import mostrar_cartoes_credito
-from configuracoes import mostrar_configuracoes
+from configuracoes import iniciar_modulo_cartoes
 
 CONFIG_FILE = "config.json"
 
@@ -252,7 +252,7 @@ class MainApplication:
     def show_credit_cards(self):
         """Exibe a tela de cartões de crédito"""
         self.clear_main_content()
-        mostrar_cartoes_credito(self.main_content, self.database)
+        iniciar_modulo_cartoes(self.main_content, self.database)
 
     def show_settings(self):
         """Exibe a tela de configurações"""

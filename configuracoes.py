@@ -501,3 +501,221 @@ def mostrar_resumo(parent, database):
     canvas = FigureCanvasTkAgg(fig, master=janela)
     canvas.draw()
     canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+def iniciar_modulo_cartoes(frame, database):
+    """
+    Inicializa o módulo de cartões na interface.
+    
+    Args:
+        frame: O frame onde o módulo será exibido
+        database: Objeto de banco de dados
+    """
+    import tkinter as tk
+    from tkinter import ttk, simpledialog, messagebox
+    import json
+    import os
+    
+    # Função para salvar os dados dos cartões
+    def salvar_cartoes(dados):
+        cartoes_config_path = "data/cartoes.json"
+        with open(cartoes_config_path, 'w', encoding='utf-8') as f:
+            json.dump(dados, f, ensure_ascii=False, indent=4)
+    
+    # Função para adicionar um novo cartão
+    def adicionar_cartao():
+        # Criar uma nova janela para adicionar cartão
+        add_window = tk.Toplevel()
+        add_window.title("Adicionar Cartão")
+        add_window.geometry("400x350")
+        add_window.resizable(False, False)
+        
+        # Centralizar a janela
+        add_window.update_idletasks()
+        width = add_window.winfo_width()
+        height = add_window.winfo_height()
+        x = (add_window.winfo_screenwidth() // 2) - (width // 2)
+        y = (add_window.winfo_screenheight() // 2) - (height // 2)
+        add_window.geometry(f'{width}x{height}+{x}+{y}')
+        
+        # Frame principal
+        main_frame = ttk.Frame(add_window, padding=20)
+        main_frame.pack(fill="both", expand=True)
+        
+        # Campos do formulário
+        ttk.Label(main_frame, text="Nome do Cartão:").grid(row=0, column=0, sticky="w", pady=5)
+        nome_entry = ttk.Entry(main_frame, width=30)
+        nome_entry.grid(row=0, column=1, pady=5)
+        
+        ttk.Label(main_frame, text="Bandeira:").grid(row=1, column=0, sticky="w", pady=5)
+        bandeira_entry = ttk.Entry(main_frame, width=30)
+        bandeira_entry.grid(row=1, column=1, pady=5)
+        
+        ttk.Label(main_frame, text="Limite (R$):").grid(row=2, column=0, sticky="w", pady=5)
+        limite_entry = ttk.Entry(main_frame, width=30)
+        limite_entry.grid(row=2, column=1, pady=5)
+        
+        ttk.Label(main_frame, text="Dia de Fechamento:").grid(row=3, column=0, sticky="w", pady=5)
+        fechamento_entry = ttk.Spinbox(main_frame, from_=1, to=31, width=5)
+        fechamento_entry.grid(row=3, column=1, sticky="w", pady=5)
+        
+        ttk.Label(main_frame, text="Dia de Vencimento:").grid(row=4, column=0, sticky="w", pady=5)
+        vencimento_entry = ttk.Spinbox(main_frame, from_=1, to=31, width=5)
+        vencimento_entry.grid(row=4, column=1, sticky="w", pady=5)
+        
+        # Frame para botões
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.grid(row=5, column=0, columnspan=2, pady=20)
+        
+        # Função para salvar o novo cartão
+        def salvar():
+            try:
+                nome = nome_entry.get().strip()
+                bandeira = bandeira_entry.get().strip()
+                limite = float(limite_entry.get().replace(',', '.'))
+                dia_fechamento = int(fechamento_entry.get())
+                dia_vencimento = int(vencimento_entry.get())
+                
+                # Validações básicas
+                if not nome:
+                    messagebox.showerror("Erro", "O nome do cartão é obrigatório.")
+                    return
+                
+                if not bandeira:
+                    messagebox.showerror("Erro", "A bandeira do cartão é obrigatória.")
+                    return
+                
+                if limite <= 0:
+                    messagebox.showerror("Erro", "O limite deve ser maior que zero.")
+                    return
+                
+                if not (1 <= dia_fechamento <= 31):
+                    messagebox.showerror("Erro", "O dia de fechamento deve estar entre 1 e 31.")
+                    return
+                
+                if not (1 <= dia_vencimento <= 31):
+                    messagebox.showerror("Erro", "O dia de vencimento deve estar entre 1 e 31.")
+                    return
+                
+                # Criar novo cartão
+                novo_cartao = {
+                    "nome": nome,
+                    "bandeira": bandeira,
+                    "limite": limite,
+                    "dia_fechamento": dia_fechamento,
+                    "dia_vencimento": dia_vencimento
+                }
+                
+                # Adicionar à lista de cartões
+                cartoes_data["cartoes"].append(novo_cartao)
+                
+                # Salvar no arquivo
+                salvar_cartoes(cartoes_data)
+                
+                # Fechar janela e atualizar a interface
+                add_window.destroy()
+                iniciar_modulo_cartoes(frame, database)
+                
+            except ValueError as e:
+                messagebox.showerror("Erro", f"Valor inválido: {str(e)}")
+        
+        # Botões
+        ttk.Button(btn_frame, text="Salvar", command=salvar).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Cancelar", command=add_window.destroy).pack(side="left", padx=5)
+    
+    # Limpar o frame
+    for widget in frame.winfo_children():
+        widget.destroy()
+    
+    # Carregar dados dos cartões
+    cartoes_config_path = "data/cartoes.json"
+    
+    # Verificar se o diretório existe, se não, criar
+    os.makedirs(os.path.dirname(cartoes_config_path), exist_ok=True)
+    
+    # Verificar se o arquivo de configuração existe
+    if not os.path.exists(cartoes_config_path):
+        # Criar arquivo de configuração padrão
+        configuracao_padrao = {
+            "cartoes": []
+        }
+        
+        with open(cartoes_config_path, 'w', encoding='utf-8') as f:
+            json.dump(configuracao_padrao, f, ensure_ascii=False, indent=4)
+        
+        cartoes_data = configuracao_padrao
+    else:
+        # Carregar configuração existente
+        try:
+            with open(cartoes_config_path, 'r', encoding='utf-8') as f:
+                cartoes_data = json.load(f)
+        except json.JSONDecodeError:
+            # Se o arquivo estiver corrompido, criar um novo
+            configuracao_padrao = {
+                "cartoes": []
+            }
+            
+            with open(cartoes_config_path, 'w', encoding='utf-8') as f:
+                json.dump(configuracao_padrao, f, ensure_ascii=False, indent=4)
+            
+            cartoes_data = configuracao_padrao
+    
+    # Criar interface do módulo de cartões
+    titulo = tk.Label(frame, text="Gerenciamento de Cartões de Crédito", font=("Arial", 16, "bold"))
+    titulo.pack(pady=10)
+    
+    # Frame para lista de cartões
+    cartoes_frame = tk.Frame(frame)
+    cartoes_frame.pack(fill="both", expand=True, padx=20, pady=10)
+    
+    # Verificar se há cartões cadastrados
+    if not cartoes_data["cartoes"]:
+        msg = tk.Label(cartoes_frame, text="Nenhum cartão cadastrado. Clique em 'Adicionar Cartão' para começar.")
+        msg.pack(pady=20)
+    else:
+        # Criar tabela de cartões
+        colunas = ("Nome", "Bandeira", "Limite", "Fechamento", "Vencimento")
+        
+        tree = ttk.Treeview(cartoes_frame, columns=colunas, show="headings")
+        
+        # Configurar cabeçalhos
+        for col in colunas:
+            tree.heading(col, text=col)
+            tree.column(col, width=100)
+        
+        # Adicionar dados
+        for cartao in cartoes_data["cartoes"]:
+            tree.insert("", "end", values=(
+                cartao["nome"],
+                cartao["bandeira"],
+                f"R$ {cartao['limite']:.2f}",
+                f"Dia {cartao['dia_fechamento']}",
+                f"Dia {cartao['dia_vencimento']}"
+            ))
+        
+        # Adicionar scrollbar
+        scrollbar = ttk.Scrollbar(cartoes_frame, orient="vertical", command=tree.yview)
+        tree.configure(yscroll=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+        tree.pack(fill="both", expand=True)
+    
+    # Frame para botões
+    botoes_frame = tk.Frame(frame)
+    botoes_frame.pack(fill="x", padx=20, pady=10)
+    
+    # Botão para adicionar cartão
+    btn_adicionar = ttk.Button(botoes_frame, text="Adicionar Cartão", command=adicionar_cartao)
+    btn_adicionar.pack(side="left", padx=5)
+    
+    # Botão para editar cartão
+    btn_editar = ttk.Button(botoes_frame, text="Editar Cartão")
+    btn_editar.pack(side="left", padx=5)
+    
+    # Botão para remover cartão
+    btn_remover = ttk.Button(botoes_frame, text="Remover Cartão")
+    btn_remover.pack(side="left", padx=5)
+    
+    # Botão para gerenciar faturas
+    btn_faturas = ttk.Button(botoes_frame, text="Gerenciar Faturas")
+    btn_faturas.pack(side="left", padx=5)
+    
+    return cartoes_data
