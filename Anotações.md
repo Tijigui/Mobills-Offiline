@@ -41,3 +41,6 @@ Vamos reestruturar a aba de transacoes:
 A aba Transacoes deve iniciar com um nome chamado Transacoes com um menu para visualizar as transacoes com colunas chamadas, situacao, data, descricao, categoria, conta,valor e acoes e no lado direito da aba transacoes deve conter 4 frames de um resumo sendo um chamado Saldo Atual e o valor, outro chamado Receitas, outro chamado Despesas e o valor e o ultimo chamado Balanco Mensal com o valor.
 
 Com essas informacoes pode gerar um novo codigo por favor
+
+
+

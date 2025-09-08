@@ -18,10 +18,12 @@
     "contas": [
         {
             "nome": "Nubank",
-            "saldo": 10.0,
-            "descricao": "11",
+            "saldo": 1000.0,
+            "saldo_inicial": 1000.0,
+            "descricao": "Alteracao",
             "tipo": "Poupança",
-            "cor": "#F44336"
+            "cor": "#43A047",
+            "data_criacao": "08/09/2025"
         },
         {
             "nome": "Pic Pay",

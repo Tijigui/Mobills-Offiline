@@ -8,6 +8,7 @@ import calendar
 
 def mostrar_cartoes_credito(main_content, database):
     """Função principal para mostrar a aba de cartões de crédito"""
+    
     for widget in main_content.winfo_children():
         widget.destroy()
         
