@@ -2,12 +2,12 @@
     "despesas": [
         {
             "data": "03/05/2025",
-            "tipo": "Receita",
-            "situacao": "Cancelado",
+            "tipo": "Despesa",
+            "situacao": "Pago",
             "descricao": "Aliexpress",
             "valor": 250.0,
             "banco": "Nubank",
-            "categoria": "Alimentação"
+            "categoria": "Lazer"
         }
     ]
 }

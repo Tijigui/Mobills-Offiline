@@ -1,10 +1,12 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, colorchooser
 from tkcalendar import DateEntry
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from datetime import datetime, timedelta
 import calendar
+from collections import defaultdict
+from database import BANKS, COLORS, ACCOUNT_TYPES
 
 def mostrar_cartoes_credito(main_content, database):
     """Função principal para mostrar a aba de cartões de crédito"""
@@ -12,20 +14,18 @@ def mostrar_cartoes_credito(main_content, database):
     for widget in main_content.winfo_children():
         widget.destroy()
         
-    tk.Label(main_content, text="Cartões de Crédito", font=("Arial", 24), bg="#ffffff").pack(pady=20)
-    
-    # Frame principal
     main_frame = tk.Frame(main_content, bg="#ffffff")
     main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
     
-    # Frame para botões de ação
-    action_frame = tk.Frame(main_frame, bg="#ffffff")
-    action_frame.pack(fill=tk.X, pady=10)
+    # Cabeçalho da página
+    header_frame = tk.Frame(main_frame, bg="#ffffff")
+    header_frame.pack(fill=tk.X, pady=(10, 20))
+    tk.Label(header_frame, text="Cartões de Crédito", font=("Arial", 24, "bold"), bg="#ffffff").pack(side=tk.LEFT)
     
     # Botão para adicionar cartão
-    tk.Button(action_frame, text="Adicionar Cartão", 
+    tk.Button(header_frame, text="+ Novo Cartão", 
               command=lambda: abrir_janela_adicionar_cartao(main_content, database),
-              bg="#4CAF50", fg="white", font=("Arial", 11)).pack(side=tk.LEFT, padx=5)
+              bg="#2196F3", fg="white", font=("Arial", 11, "bold"), padx=15, pady=5, relief=tk.FLAT).pack(side=tk.RIGHT)
     
     # Listar cartões existentes
     listar_cartoes(main_frame, database, main_content)
@@ -39,7 +39,7 @@ def listar_cartoes(parent, database, main_content):
     
     if not cartoes or len(cartoes) == 0:
         tk.Label(cartoes_frame, text="Nenhum cartão de crédito cadastrado", 
-                 font=("Arial", 12), bg="#ffffff").pack(pady=20)
+                 font=("Arial", 12), bg="#ffffff").pack(pady=50)
         return
     
     # Criar um canvas com scrollbar para muitos cartões
@@ -60,6 +60,29 @@ def listar_cartoes(parent, database, main_content):
     
     # Criar um frame para cada cartão
     for cartao in cartoes:
+        # Calcular fatura atual
+        hoje = datetime.now()
+        dia_fechamento = cartao.get('fechamento', 1)
+        dia_vencimento = cartao.get('vencimento', 1)
+        fatura_atual_valor = 0
+        
+        # Lógica para determinar o período de fatura
+        if hoje.day > dia_fechamento:
+            data_inicio = hoje.replace(day=dia_fechamento)
+            data_fim = (hoje + timedelta(days=32)).replace(day=dia_fechamento) - timedelta(days=1)
+        else:
+            data_inicio = (hoje - timedelta(days=1)).replace(day=dia_fechamento)
+            data_fim = hoje.replace(day=dia_fechamento) - timedelta(days=1)
+
+        # Buscar transações que correspondam ao período da fatura
+        despesas_cartao = [
+            d for d in database.listar_despesas()
+            if d.get('banco') == cartao.get('nome') and 
+            data_inicio.date() <= datetime.strptime(d['data'], "%d/%m/%Y").date() <= data_fim.date()
+        ]
+        
+        fatura_atual_valor = sum(d['valor'] for d in despesas_cartao)
+        
         card_frame = tk.Frame(scrollable_frame, bg="#f0f0f0", relief=tk.RAISED, bd=1)
         card_frame.pack(fill=tk.X, pady=5, padx=10)
         
@@ -91,7 +114,7 @@ def listar_cartoes(parent, database, main_content):
         
         tk.Label(fatura_frame, text="Fatura Atual:", 
                  font=("Arial", 10), bg="#f0f0f0").pack(anchor="w")
-        tk.Label(fatura_frame, text=f"R$ {cartao.get('fatura_atual', 0):.2f}", 
+        tk.Label(fatura_frame, text=f"R$ {fatura_atual_valor:.2f}", 
                  font=("Arial", 10, "bold"), bg="#f0f0f0").pack(anchor="w")
         
         # Vencimento
@@ -100,7 +123,7 @@ def listar_cartoes(parent, database, main_content):
         
         tk.Label(vencimento_frame, text="Vencimento:", 
                  font=("Arial", 10), bg="#f0f0f0").pack(anchor="w")
-        tk.Label(vencimento_frame, text=f"Dia {cartao.get('dia_vencimento', '-')}", 
+        tk.Label(vencimento_frame, text=f"Dia {cartao.get('vencimento', '-')}", 
                  font=("Arial", 10, "bold"), bg="#f0f0f0").pack(anchor="w")
         
         # Botões de ação
@@ -129,8 +152,7 @@ def abrir_janela_adicionar_cartao(main_content, database):
     # Banco
     tk.Label(janela, text="Banco:", font=("Arial", 10, "bold")).pack(pady=(10, 5))
     banco_var = tk.StringVar()
-    bancos = ["Santander", "Nubank", "Banco do Brasil", "Caixa", "Itau", 
-              "Bradesco", "Pic Pay", "Banco Inter", "C6 Bank", "Outro"]
+    bancos = BANKS + ["Outro"]
     ttk.Combobox(janela, textvariable=banco_var, values=bancos, state="readonly", width=30).pack(pady=(0, 10))
     
     # Limite
@@ -152,14 +174,10 @@ def abrir_janela_adicionar_cartao(main_content, database):
     # Cor
     tk.Label(janela, text="Cor:", font=("Arial", 10, "bold")).pack(pady=(10, 5))
     cor_var = tk.StringVar(value="#1976D2")
-    cores = {
-        "Azul": "#1976D2", "Vermelho": "#E53935", "Verde": "#43A047", 
-        "Roxo": "#8E24AA", "Laranja": "#FB8C00", "Cinza": "#757575"
-    }
     cor_frame = tk.Frame(janela)
     cor_frame.pack(pady=(0, 10))
     
-    for nome_cor, hex_cor in cores.items():
+    for nome_cor, hex_cor in COLORS.items():
         tk.Radiobutton(
             cor_frame, text=nome_cor, variable=cor_var, value=hex_cor,
             bg=hex_cor, fg="white", indicatoron=0, width=10
@@ -186,7 +204,6 @@ def abrir_janela_adicionar_cartao(main_content, database):
                 "dia_fechamento": dia_fechamento,
                 "dia_vencimento": dia_vencimento,
                 "cor": cor_var.get(),
-                "fatura_atual": 0.0
             }
             
             database.adicionar_cartao(novo_cartao)
@@ -215,8 +232,7 @@ def abrir_janela_editar_cartao(main_content, database, cartao):
     # Banco
     tk.Label(janela, text="Banco:", font=("Arial", 10, "bold")).pack(pady=(10, 5))
     banco_var = tk.StringVar(value=cartao.get('banco', ''))
-    bancos = ["Santander", "Nubank", "Banco do Brasil", "Caixa", "Itau", 
-              "Bradesco", "Pic Pay", "Banco Inter", "C6 Bank", "Outro"]
+    bancos = BANKS + ["Outro"]
     ttk.Combobox(janela, textvariable=banco_var, values=bancos, state="readonly", width=30).pack(pady=(0, 10))
     
     # Limite
@@ -226,26 +242,22 @@ def abrir_janela_editar_cartao(main_content, database, cartao):
     
     # Dia de fechamento
     tk.Label(janela, text="Dia de Fechamento:", font=("Arial", 10, "bold")).pack(pady=(10, 5))
-    fechamento_var = tk.StringVar(value=str(cartao.get('dia_fechamento', 1)))
+    fechamento_var = tk.StringVar(value=str(cartao.get('fechamento', 1)))
     dias = [str(i) for i in range(1, 32)]
     ttk.Combobox(janela, textvariable=fechamento_var, values=dias, state="readonly", width=30).pack(pady=(0, 10))
     
     # Dia de vencimento
     tk.Label(janela, text="Dia de Vencimento:", font=("Arial", 10, "bold")).pack(pady=(10, 5))
-    vencimento_var = tk.StringVar(value=str(cartao.get('dia_vencimento', 1)))
+    vencimento_var = tk.StringVar(value=str(cartao.get('vencimento', 1)))
     ttk.Combobox(janela, textvariable=vencimento_var, values=dias, state="readonly", width=30).pack(pady=(0, 10))
     
     # Cor
     tk.Label(janela, text="Cor:", font=("Arial", 10, "bold")).pack(pady=(10, 5))
     cor_var = tk.StringVar(value=cartao.get('cor', '#1976D2'))
-    cores = {
-        "Azul": "#1976D2", "Vermelho": "#E53935", "Verde": "#43A047", 
-        "Roxo": "#8E24AA", "Laranja": "#FB8C00", "Cinza": "#757575"
-    }
     cor_frame = tk.Frame(janela)
     cor_frame.pack(pady=(0, 10))
     
-    for nome_cor, hex_cor in cores.items():
+    for nome_cor, hex_cor in COLORS.items():
         tk.Radiobutton(
             cor_frame, text=nome_cor, variable=cor_var, value=hex_cor,
             bg=hex_cor, fg="white", indicatoron=0, width=10
@@ -309,18 +321,56 @@ def mostrar_faturas(main_content, database, cartao):
     filtro_frame.pack(fill=tk.X, padx=20, pady=10)
     
     tk.Label(filtro_frame, text="Mês:").pack(side=tk.LEFT, padx=5)
-    mes_var = tk.StringVar(value=str(datetime.now().month))
-    meses = ["1 - Janeiro", "2 - Fevereiro", "3 - Março", "4 - Abril", 
-             "5 - Maio", "6 - Junho", "7 - Julho", "8 - Agosto", 
-             "9 - Setembro", "10 - Outubro", "11 - Novembro", "12 - Dezembro"]
-    ttk.Combobox(filtro_frame, textvariable=mes_var, values=meses, state="readonly", width=15).pack(side=tk.LEFT, padx=5)
+    meses_pt = [
+        "1 - Janeiro", "2 - Fevereiro", "3 - Março", "4 - Abril", 
+        "5 - Maio", "6 - Junho", "7 - Julho", "8 - Agosto", 
+        "9 - Setembro", "10 - Outubro", "11 - Novembro", "12 - Dezembro"
+    ]
+    mes_var = tk.StringVar(value=meses_pt[datetime.now().month - 1])
+    mes_combo = ttk.Combobox(filtro_frame, textvariable=mes_var, values=meses_pt, state="readonly", width=15)
+    mes_combo.pack(side=tk.LEFT, padx=5)
     
     tk.Label(filtro_frame, text="Ano:").pack(side=tk.LEFT, padx=5)
     ano_var = tk.StringVar(value=str(datetime.now().year))
     anos = [str(year) for year in range(datetime.now().year - 5, datetime.now().year + 2)]
-    ttk.Combobox(filtro_frame, textvariable=ano_var, values=anos, state="readonly", width=10).pack(side=tk.LEFT, padx=5)
+    ano_combo = ttk.Combobox(filtro_frame, textvariable=ano_var, values=anos, state="readonly", width=10)
+    ano_combo.pack(side=tk.LEFT, padx=5)
     
-    tk.Button(filtro_frame, text="Buscar", command=lambda: buscar_faturas()).pack(side=tk.LEFT, padx=20)
+    # Total da fatura
+    total_label = tk.Label(filtro_frame, text="Total da Fatura: R$ 0,00", font=("Arial", 12, "bold"))
+    total_label.pack(side=tk.LEFT, padx=20)
+
+    def buscar_faturas():
+        # Limpar treeview
+        for item in tree.get_children():
+            tree.delete(item)
+            
+        mes = int(mes_var.get().split(' ')[0])
+        ano = int(ano_var.get())
+        
+        # Lógica para determinar o período de fatura
+        # Assume que a fatura fecha no dia 'fechamento' e vence no dia 'vencimento' do mês seguinte.
+        # Transações são consideradas na fatura do mês em que são feitas, desde que entre as datas de fechamento.
+        dia_fechamento = cartao.get('fechamento', 1)
+        
+        # Período de fatura: do dia de fechamento do mês anterior ao dia de fechamento do mês atual
+        data_inicio = datetime(ano, mes, dia_fechamento) if mes != 1 else datetime(ano - 1, 12, dia_fechamento)
+        data_fim = datetime(ano, mes + 1, dia_fechamento) if mes != 12 else datetime(ano + 1, 1, dia_fechamento)
+            
+        transacoes_filtradas = [
+            d for d in database.listar_despesas()
+            if d.get('banco') == cartao.get('nome') and 
+            datetime.strptime(d['data'], "%d/%m/%Y").date() >= data_inicio.date() and
+            datetime.strptime(d['data'], "%d/%m/%Y").date() < data_fim.date()
+        ]
+        
+        total_fatura = sum(d.get('valor', 0) for d in transacoes_filtradas)
+        total_label.config(text=f"Total da Fatura: R$ {total_fatura:.2f}")
+
+        for t in transacoes_filtradas:
+            tree.insert("", "end", values=(t['data'], t['descricao'], f"R$ {t['valor']:.2f}", t.get('categoria', 'N/A')))
+    
+    tk.Button(filtro_frame, text="Buscar", command=buscar_faturas).pack(side=tk.LEFT, padx=20)
     
     # Frame para listagem
     lista_frame = tk.Frame(janela)
@@ -347,42 +397,9 @@ def mostrar_faturas(main_content, database, cartao):
     scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
     tree.configure(yscrollcommand=scrollbar.set)
     
-    # Frame para total
-    total_frame = tk.Frame(janela)
-    total_frame.pack(fill=tk.X, padx=20, pady=10)
-    
-    total_label = tk.Label(total_frame, text="Total da Fatura: R$ 0,00", font=("Arial", 12, "bold"))
-    total_label.pack(side=tk.RIGHT)
-    
     # Frame para botões
     botoes_frame = tk.Frame(janela)
     botoes_frame.pack(fill=tk.X, padx=20, pady=10)
     
-    tk.Button(botoes_frame, text="Adicionar Lançamento", 
-              command=lambda: adicionar_lancamento()).pack(side=tk.LEFT, padx=5)
-    tk.Button(botoes_frame, text="Editar Lançamento", 
-              command=lambda: editar_lancamento()).pack(side=tk.LEFT, padx=5)
-    tk.Button(botoes_frame, text="Remover Lançamento", 
-              command=lambda: remover_lancamento()).pack(side=tk.LEFT, padx=5)
-    tk.Button(botoes_frame, text="Exportar Fatura", 
-              command=lambda: exportar_fatura()).pack(side=tk.LEFT, padx=5)
-    
-    def buscar_faturas():
-        # Implementação futura para buscar faturas do banco de dados
-        messagebox.showinfo("Informação", "Funcionalidade em desenvolvimento")
-    
-    def adicionar_lancamento():
-        # Implementação futura para adicionar lançamento
-        messagebox.showinfo("Informação", "Funcionalidade em desenvolvimento")
-    
-    def editar_lancamento():
-        # Implementação futura para editar lançamento
-        messagebox.showinfo("Informação", "Funcionalidade em desenvolvimento")
-    
-    def remover_lancamento():
-        # Implementação futura para remover lançamento
-        messagebox.showinfo("Informação", "Funcionalidade em desenvolvimento")
-    
-    def exportar_fatura():
-        # Implementação futura para exportar fatura
-        messagebox.showinfo("Informação", "Funcionalidade em desenvolvimento")
+    # Chamar buscar_faturas() para carregar os dados iniciais
+    buscar_faturas()

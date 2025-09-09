@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, colorchooser
-from database import COLORS, ACCOUNT_TYPES
+from database import COLORS, ACCOUNT_TYPES, BANKS
 import locale
 from datetime import datetime
 
@@ -60,34 +60,11 @@ def mostrar_contas(main_content, database):
     
     # Calcular saldo total e outros indicadores
     contas = database.listar_contas()
-    saldo_total = sum(conta.get('saldo', 0) for conta in contas)
+    saldo_total = database.calcular_saldo_total()
     
     # Adicionar previsão de saldo (simulação)
-    saldo_previsto = saldo_total
-    despesas_pendentes = 0
-    receitas_pendentes = 0
-    
-    try:
-        # Tenta obter transações futuras
-        hoje = datetime.now().date()
-        transacoes = database.listar_despesas()
-        
-        for transacao in transacoes:
-            data_str = transacao.get('data', '')
-            try:
-                data = datetime.strptime(data_str, "%d/%m/%Y").date()
-                if data > hoje:
-                    if transacao.get('tipo') == 'receita':
-                        receitas_pendentes += float(transacao.get('valor', 0))
-                    else:
-                        despesas_pendentes += float(transacao.get('valor', 0))
-            except:
-                pass
-        
-        saldo_previsto = saldo_total + receitas_pendentes - despesas_pendentes
-    except:
-        # Se não conseguir calcular, usa o saldo atual
-        pass
+    # Refatorado: agora usa a lógica do database.py
+    saldo_previsto = database.calcular_saldo_previsto_total()
     
     # Layout do resumo em grid
     resumo_inner = tk.Frame(resumo_frame, bg="white", padx=20, pady=15)
@@ -103,6 +80,9 @@ def mostrar_contas(main_content, database):
     ).grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 10))
     
     # Indicadores financeiros
+    despesas_pendentes = database.calcular_saldo_futuro(tipo_transacao='despesa', por_conta=False)
+    receitas_pendentes = database.calcular_saldo_futuro(tipo_transacao='receita', por_conta=False)
+
     indicadores = [
         ("Total de Contas:", f"{len(contas)}", 0, 1),
         ("Saldo Total:", formatar_moeda(saldo_total), 0, 2),
@@ -120,7 +100,12 @@ def mostrar_contas(main_content, database):
             fg="#555555"
         ).grid(row=row+1, column=col*2-2, sticky="w", pady=5, padx=(0, 10))
         
-        cor_valor = "#4CAF50" if "Saldo" in label and float(valor.replace("R$", "").replace(".", "").replace(",", ".").strip()) > 0 else "#E53935" if "Saldo" in label else "#333333"
+        # Corrigido: tratamento de valor para evitar erro de float em strings
+        try:
+            valor_float = float(valor.replace("R$", "").replace(".", "").replace(",", ".").strip())
+            cor_valor = "#4CAF50" if valor_float > 0 else "#E53935" if valor_float < 0 else "#333333"
+        except (ValueError, AttributeError):
+            cor_valor = "#333333" # Cor padrão para valores não numéricos
         
         tk.Label(
             resumo_inner, 
@@ -212,25 +197,8 @@ def criar_card_conta(parent, conta, database, main_content, row, col):
     descricao = conta.get("descricao", "")
     
     # Calcular saldo previsto (simulação)
-    saldo_previsto = saldo
-    try:
-        hoje = datetime.now().date()
-        transacoes = database.listar_despesas()
-        
-        for transacao in transacoes:
-            if transacao.get('conta') == nome:
-                data_str = transacao.get('data', '')
-                try:
-                    data = datetime.strptime(data_str, "%d/%m/%Y").date()
-                    if data > hoje:
-                        if transacao.get('tipo') == 'receita':
-                            saldo_previsto += float(transacao.get('valor', 0))
-                        else:
-                            saldo_previsto -= float(transacao.get('valor', 0))
-                except:
-                    pass
-    except:
-        pass
+    # Refatorado: usa a lógica centralizada no database.py
+    saldo_previsto = database.calcular_saldo_previsto(nome)
     
     # Frame principal do card
     card_frame = tk.Frame(
@@ -391,7 +359,7 @@ def criar_card_conta(parent, conta, database, main_content, row, col):
     parent.grid_columnconfigure(0, weight=1)
     parent.grid_columnconfigure(1, weight=1)
 
-# Restante do código permanece o mesmo (open_account_window, mostrar_detalhes_conta, excluir_conta)
+# Refatorado para usar mensagens de feedback no formulário
 def open_account_window(main_content, database):
     """Abre janela para adicionar nova conta"""
     # Criar nova janela
@@ -425,10 +393,7 @@ def open_account_window(main_content, database):
     # Nome do Banco - APENAS SELEÇÃO (não permite digitação)
     tk.Label(main_frame, text="Nome do Banco:").pack(anchor="w")
     banco_var = tk.StringVar()
-    banco_entry = ttk.Combobox(main_frame, textvariable=banco_var, values=[
-        "Santander", "Nubank", "Banco do Brasil", "Caixa", "Itau",
-        "Bradesco", "Pic Pay", "Banco Inter", "C6 Bank"
-    ], state="readonly")  # state="readonly" impede digitação
+    banco_entry = ttk.Combobox(main_frame, textvariable=banco_var, values=BANKS, state="readonly")  # state="readonly" impede digitação
     banco_entry.pack(fill="x", pady=(0, 10))
     
     # Saldo Inicial
@@ -446,9 +411,7 @@ def open_account_window(main_content, database):
     # Tipo de Conta - APENAS SELEÇÃO - COM OPÇÕES CORRIGIDAS
     tk.Label(main_frame, text="Tipo de Conta:").pack(anchor="w")
     tipo_var = tk.StringVar()
-    tipo_entry = ttk.Combobox(main_frame, textvariable=tipo_var, values=[
-        "Conta Corrente", "Conta Poupanca", "Investimento", "VR/VA", "Carteira", "Outros"
-    ], state="readonly")  # state="readonly" impede digitação
+    tipo_entry = ttk.Combobox(main_frame, textvariable=tipo_var, values=ACCOUNT_TYPES, state="readonly")  # state="readonly" impede digitação
     tipo_entry.pack(fill="x", pady=(0, 10))
     
     # Cor (com seleção de cores)
@@ -460,91 +423,68 @@ def open_account_window(main_content, database):
     cores_frame.pack(fill="x", pady=(5, 10))
     
     # Cores predefinidas
-    cores = {
-        "Azul": "#2196F3",
-        "Verde": "#4CAF50",
-        "Vermelho": "#F44336",
-        "Roxo": "#9C27B0",
-        "Laranja": "#FF9800",
-        "Cinza": "#9E9E9E",
-        "Preto": "#000000",
-        "Amarelo": "#FFEB3B"
-    }
-    
-    # Criar botões de cores em duas linhas
-    cores_lista = list(cores.items())
-    for i, (nome_cor, hex_cor) in enumerate(cores_lista[:4]):
+    cores_lista = list(COLORS.items())
+    for i, (nome_cor, hex_cor) in enumerate(cores_lista):
         rb = tk.Radiobutton(
             cores_frame, text=nome_cor, variable=cor_var, value=hex_cor,
             bg=hex_cor, fg="white" if nome_cor not in ["Amarelo"] else "black",
             indicatoron=0, width=8, height=2
         )
-        rb.grid(row=0, column=i, padx=2, pady=2, sticky="ew")
-    
-    for i, (nome_cor, hex_cor) in enumerate(cores_lista[4:]):
-        rb = tk.Radiobutton(
-            cores_frame, text=nome_cor, variable=cor_var, value=hex_cor,
-            bg=hex_cor, fg="white" if nome_cor not in ["Amarelo"] else "black",
-            indicatoron=0, width=8, height=2
-        )
-        rb.grid(row=1, column=i, padx=2, pady=2, sticky="ew")
+        rb.grid(row=i // 4, column=i % 4, padx=2, pady=2, sticky="ew")
     
     # Configurar o grid para distribuir espaço igualmente
     for i in range(4):
         cores_frame.columnconfigure(i, weight=1)
+
+    # Label de feedback
+    feedback_label = tk.Label(main_frame, text="", fg="red", font=("Arial", 10), pady=5)
+    feedback_label.pack(fill="x")
     
-    # Função para salvar a conta
-    def salvar_conta():
+    # Função de validação interna
+    def validar_e_salvar():
+        nome = banco_var.get()
+        saldo_texto = saldo_var.get().replace(',', '.')
+        descricao = descricao_var.get()
+        tipo = tipo_var.get()
+        cor = cor_var.get()
+
+        # Limpar mensagem de feedback
+        feedback_label.config(text="")
+
+        # Validação de campos obrigatórios
+        if not nome:
+            feedback_label.config(text="Selecione o nome do banco.")
+            return
+        
+        if not tipo:
+            feedback_label.config(text="Selecione o tipo de conta.")
+            return
+
+        if not saldo_texto:
+            feedback_label.config(text="Informe o saldo inicial.")
+            return
+            
         try:
-            nome = banco_var.get()
-            saldo_texto = saldo_var.get().replace(',', '.')
-            descricao = descricao_var.get()
-            tipo = tipo_var.get()
-            cor = cor_var.get()
-            
-            # Verificar campos obrigatórios
-            if not nome:
-                tk.messagebox.showwarning("Campo obrigatório", 
-                                         "Selecione o nome do banco.")
-                return
-                
-            if not tipo:
-                tk.messagebox.showwarning("Campo obrigatório", 
-                                         "Selecione o tipo de conta.")
-                return
-            
-            # Verificar se o saldo é válido
-            if not saldo_texto:
-                tk.messagebox.showwarning("Campo obrigatório", 
-                                         "Informe o saldo inicial.")
-                return
-                
-            try:
-                saldo = float(saldo_texto)
-            except ValueError:
-                tk.messagebox.showerror("Formato inválido", 
-                                       "Saldo deve ser um número válido.")
-                return
-                
-            # Adicionar conta ao banco de dados
-            success = database.adicionar_conta(
-                nome=nome,
-                saldo_inicial=saldo,
-                descricao=descricao,
-                tipo=tipo,
-                cor=cor
-            )
-            
-            if success:
-                tk.messagebox.showinfo("Sucesso", "Conta adicionada com sucesso!")
-                form_window.destroy()
-                # Atualizar a visualização
-                mostrar_contas(main_content, database)
-            else:
-                tk.messagebox.showerror("Erro", "Não foi possível adicionar a conta.")
-                
-        except Exception as e:
-            tk.messagebox.showerror("Erro", f"Ocorreu um erro: {str(e)}")
+            saldo = float(saldo_texto)
+        except ValueError:
+            feedback_label.config(text="Saldo deve ser um número válido.")
+            return
+        
+        # Adicionar conta ao banco de dados
+        success = database.adicionar_conta(
+            nome=nome,
+            saldo_inicial=saldo,
+            descricao=descricao,
+            tipo=tipo,
+            cor=cor
+        )
+        
+        if success:
+            feedback_label.config(text="Conta adicionada com sucesso!", fg="green")
+            form_window.after(1500, form_window.destroy) # Fecha a janela após 1.5s
+            mostrar_contas(main_content, database)
+        else:
+            feedback_label.config(text="Não foi possível adicionar a conta. Talvez o nome já exista.")
     
     # BOTÃO DE SALVAR - Destacado e garantidamente visível
     botao_frame = tk.Frame(main_frame)
@@ -553,7 +493,7 @@ def open_account_window(main_content, database):
     salvar_btn = tk.Button(
         botao_frame,
         text="SALVAR CONTA",
-        command=salvar_conta,
+        command=validar_e_salvar,
         bg="#4CAF50",  # Verde
         fg="white",
         font=("Arial", 12, "bold"),
@@ -634,18 +574,25 @@ def mostrar_detalhes_conta(main_content, database, conta, account_list_frame):
     
     tk.Button(detalhes, text="Outros", command=escolher_outra_cor).pack(pady=5)
     
+    # Label de feedback
+    feedback_label = tk.Label(detalhes, text="", fg="red", font=("Arial", 10), pady=5)
+    feedback_label.pack(fill="x")
+
     botoes_frame = tk.Frame(detalhes)
     botoes_frame.pack(pady=20)
     
     def salvar_alteracoes():
+        # Limpar mensagem de feedback
+        feedback_label.config(text="")
+        
         try:
             novo_saldo = float(saldo_var.get().replace(",", "."))
         except ValueError:
-            messagebox.showerror("Erro", "Saldo inválido.")
+            feedback_label.config(text="Saldo inválido.")
             return
         
         if not nome_var.get().strip():
-            messagebox.showerror("Erro", "Nome da conta não pode ser vazio.")
+            feedback_label.config(text="Nome da conta não pode ser vazio.")
             return
         
         success = database.atualizar_conta(
@@ -658,11 +605,11 @@ def mostrar_detalhes_conta(main_content, database, conta, account_list_frame):
         )
         
         if success:
-            messagebox.showinfo("Sucesso", "Conta atualizada com sucesso!")
-            detalhes.destroy()
+            feedback_label.config(text="Conta atualizada com sucesso!", fg="green")
+            detalhes.after(1500, detalhes.destroy)
             mostrar_contas(main_content, database)
         else:
-            messagebox.showerror("Erro", "Não foi possível atualizar a conta.")
+            feedback_label.config(text="Não foi possível atualizar a conta.")
     
     def excluir_conta_detalhes():
         excluir_conta(database, conta, account_list_frame, main_content)

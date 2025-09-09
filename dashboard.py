@@ -6,6 +6,7 @@ from matplotlib.figure import Figure
 from collections import defaultdict
 import calendar
 from datetime import datetime, timedelta
+import numpy as np # Adicionada a importação do numpy
 
 # Definição de cores e estilos consistentes
 PRIMARY_COLOR = "#3498db"
@@ -202,12 +203,14 @@ def criar_grafico_categorias(parent, database):
     # Buscar despesas do mês
     despesas = database.listar_despesas(data_inicio=primeiro_dia, data_fim=ultimo_dia)
     
-    # Agrupar por tag
-    por_tag = defaultdict(float)
+    # Agrupar por categoria (antiga 'tag')
+    por_categoria = defaultdict(float)
     for d in despesas:
-        por_tag[d['tag']] += d['valor']
+        # Use 'categoria' como a chave principal
+        categoria_nome = d.get('categoria', 'Não Categorizado')
+        por_categoria[categoria_nome] += d['valor']
     
-    if not por_tag:
+    if not por_categoria:
         tk.Label(content, text="Sem dados para exibir", bg=CARD_BG, fg=LIGHT_TEXT,
                 font=("Helvetica", 12)).pack(pady=50)
         return
@@ -219,8 +222,8 @@ def criar_grafico_categorias(parent, database):
     # Ordenar por valor para melhor visualização
     labels = []
     sizes = []
-    for tag, valor in sorted(por_tag.items(), key=lambda x: x[1], reverse=True):
-        labels.append(tag)
+    for categoria_nome, valor in sorted(por_categoria.items(), key=lambda x: x[1], reverse=True):
+        labels.append(categoria_nome)
         sizes.append(valor)
     
     # Cores para o gráfico
@@ -379,6 +382,3 @@ def criar_ultimas_transacoes(parent, database):
         # Valor
         tk.Label(row, text=f"R$ {d['valor']:.2f}", bg=row_bg, width=10, fg=DANGER_COLOR,
                 font=("Helvetica", 9, "bold")).pack(side=tk.RIGHT, padx=5)
-
-# Adicionar esta função para compatibilidade com o código atualizado
-import numpy as np

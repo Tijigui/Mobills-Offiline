@@ -2,7 +2,7 @@ import os
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, colorchooser
 from tkcalendar import DateEntry
-from database import Database, COLORS, ACCOUNT_TYPES
+from database import Database, COLORS, ACCOUNT_TYPES, BANKS
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import json
@@ -13,11 +13,6 @@ from transacoes import TransacoesModernUI
 from cartoes_creditos import mostrar_cartoes_credito
 
 CONFIG_FILE = "config.json"
-
-BANKS = [
-    "Santander", "Nubank", "Banco do Brasil", "Caixa", "Itau",
-    "Bradesco", "Pic Pay", "Banco Inter", "C6 Bank"
-]
 
 class MainApplication:
     def __init__(self, master, database):

@@ -9,6 +9,17 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 import logging
+from collections import defaultdict
+import locale
+
+# Configurar locale para formatação de moeda
+try:
+    locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+except:
+    try:
+        locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil.1252')
+    except:
+        pass
 
 # Configurar logging
 logging.basicConfig(
@@ -28,14 +39,17 @@ COLORS = {
     "Verde": "#43A047",
     "Roxo": "#8E24AA",
     "Laranja": "#FB8C00",
-    "Cinza": "#757575"
+    "Cinza": "#757575",
+    "Preto": "#000000",
+    "Amarelo": "#FFEB3B",
 }
 
 ACCOUNT_TYPES = [
     "Conta Corrente",
     "Conta Poupança",
-    "Carteira",
-    "Investimentos",
+    "Investimento",
+    "VR/VA", 
+    "Carteira", 
     "Outros"
 ]
 
@@ -46,7 +60,15 @@ EXPENSE_CATEGORIES = [
     "Saúde",
     "Lazer",
     "Educação",
-    "Outros"
+    "Outros",
+    "Compras", # Adicionado para corresponder aos dados existentes
+    "Pix", # Adicionado para corresponder aos dados existentes
+    "Fatura Cartão", # Adicionado para ser usado com transações de cartão
+]
+
+BANKS = [
+    "Santander", "Nubank", "Banco do Brasil", "Caixa", "Itau",
+    "Bradesco", "Pic Pay", "Banco Inter", "C6 Bank", "Outro"
 ]
 
 class Database:
@@ -389,10 +411,72 @@ class Database:
         for conta in self.dados['contas']:
             saldo_total += conta['saldo']
         return saldo_total
+        
+    def calcular_saldo_futuro(self, tipo_transacao, por_conta=True):
+        """
+        Calcula o total de despesas ou receitas futuras.
+        Se por_conta for True, retorna um dicionário com os totais por conta.
+        Se por_conta for False, retorna o total geral.
+        """
+        hoje = datetime.now().date()
+        transacoes_futuras = [
+            t for t in self.dados.get('despesas', [])
+            if datetime.strptime(t['data'], "%d/%m/%Y").date() > hoje and t.get('tipo', 'despesa') == tipo_transacao
+        ]
+
+        if por_conta:
+            saldos_futuros = defaultdict(float)
+            for t in transacoes_futuras:
+                banco = t.get('banco')
+                if banco:
+                    saldos_futuros[banco] += t.get('valor', 0)
+            return dict(saldos_futuros)
+        else:
+            return sum(t.get('valor', 0) for t in transacoes_futuras)
+            
+    def calcular_saldo_previsto(self, conta_nome):
+        """Calcula o saldo previsto para uma conta específica, incluindo transações futuras."""
+        conta = self.obter_conta(conta_nome)
+        if not conta:
+            return 0
+
+        saldo_atual = conta.get('saldo', 0)
+        
+        hoje = datetime.now().date()
+        transacoes_futuras = [
+            t for t in self.dados.get('despesas', [])
+            if t.get('banco') == conta_nome and datetime.strptime(t['data'], "%d/%m/%Y").date() > hoje
+        ]
+
+        for t in transacoes_futuras:
+            if t.get('tipo', 'despesa') == 'receita':
+                saldo_atual += t.get('valor', 0)
+            else:
+                saldo_atual -= t.get('valor', 0)
+        
+        return saldo_atual
+
+    def calcular_saldo_previsto_total(self):
+        """Calcula o saldo total previsto de todas as contas."""
+        saldo_total = self.calcular_saldo_total()
+        
+        hoje = datetime.now().date()
+        transacoes_futuras = [
+            t for t in self.dados.get('despesas', [])
+            if datetime.strptime(t['data'], "%d/%m/%Y").date() > hoje
+        ]
+
+        for t in transacoes_futuras:
+            if t.get('tipo', 'despesa') == 'receita':
+                saldo_total += t.get('valor', 0)
+            else:
+                saldo_total -= t.get('valor', 0)
+        
+        return saldo_total
     
     # Métodos para despesas
-    def adicionar_despesa(self, descricao, valor, data, tag, banco, categoria):
-        """Adiciona uma nova despesa"""
+    def adicionar_despesa(self, descricao, valor, data, tag, banco, categoria, tipo_transacao="despesa"):
+        """Adiciona uma nova transação (despesa ou receita)"""
         # Validação de entrada
         if not descricao or descricao.strip() == "":
             return False
@@ -407,26 +491,33 @@ class Database:
             datetime.strptime(data, "%d/%m/%Y")
         except ValueError:
             return False
+        
+        if tipo_transacao.lower() not in ["despesa", "receita"]:
+            return False
             
-        nova_despesa = {
+        nova_transacao = {
             "descricao": descricao,
             "valor": valor,
             "data": data,
             "tag": tag,
             "banco": banco,
-            "categoria": categoria
+            "categoria": categoria,
+            "tipo": tipo_transacao.lower()
         }
         
         if 'despesas' not in self.dados:
             self.dados['despesas'] = []
         
-        self.dados['despesas'].append(nova_despesa)
+        self.dados['despesas'].append(nova_transacao)
         
-        # Atualizar saldo da conta se banco for especificado
+        # Atualizar saldo da conta com base no tipo de transação
         if banco:
             for i, conta in enumerate(self.dados['contas']):
                 if conta['nome'] == banco:
-                    self.dados['contas'][i]['saldo'] -= valor
+                    if nova_transacao['tipo'] == 'receita':
+                        self.dados['contas'][i]['saldo'] += valor
+                    else: # despesa
+                        self.dados['contas'][i]['saldo'] -= valor
                     break
                     
         self.salvar_dados()
@@ -476,7 +567,7 @@ class Database:
         
         return despesas_filtradas
     
-    def editar_despesa(self, indice, descricao, valor, data, tag, banco, categoria):
+    def editar_despesa(self, indice, descricao, valor, data, tag, banco, categoria, tipo_transacao="despesa"):
         """Edita uma despesa existente pelo índice"""
         if 'despesas' not in self.dados or indice < 0 or indice >= len(self.dados['despesas']):
             return False
@@ -496,31 +587,44 @@ class Database:
         except ValueError:
             return False
         
+        if tipo_transacao.lower() not in ["despesa", "receita"]:
+            return False
+        
         # Armazenar valores antigos para ajustar saldo
         despesa_antiga = self.dados['despesas'][indice]
         banco_antigo = despesa_antiga.get('banco', '')
         valor_antigo = despesa_antiga.get('valor', 0)
+        tipo_antigo = despesa_antiga.get('tipo', 'despesa')
         
+        # Ajustar saldo da conta antiga (revertendo o valor)
+        if banco_antigo:
+            for i, conta in enumerate(self.dados['contas']):
+                if conta['nome'] == banco_antigo:
+                    if tipo_antigo == 'receita':
+                        self.dados['contas'][i]['saldo'] -= valor_antigo
+                    else: # despesa
+                        self.dados['contas'][i]['saldo'] += valor_antigo
+                    break
+        
+        # Atualizar a despesa no banco de dados
         self.dados['despesas'][indice] = {
             "descricao": descricao,
             "valor": valor,
             "data": data,
             "tag": tag,
             "banco": banco,
-            "categoria": categoria
+            "categoria": categoria,
+            "tipo": tipo_transacao.lower()
         }
         
-        # Ajustar saldos das contas se necessário
-        if banco_antigo:
-            for i, conta in enumerate(self.dados['contas']):
-                if conta['nome'] == banco_antigo:
-                    self.dados['contas'][i]['saldo'] += valor_antigo
-                    break
-                    
+        # Ajustar saldos da conta nova
         if banco:
             for i, conta in enumerate(self.dados['contas']):
                 if conta['nome'] == banco:
-                    self.dados['contas'][i]['saldo'] -= valor
+                    if tipo_transacao.lower() == 'receita':
+                        self.dados['contas'][i]['saldo'] += valor
+                    else: # despesa
+                        self.dados['contas'][i]['saldo'] -= valor
                     break
         
         self.salvar_dados()
@@ -536,7 +640,11 @@ class Database:
         if 'banco' in despesa and despesa['banco']:
             for i, conta in enumerate(self.dados['contas']):
                 if conta['nome'] == despesa['banco']:
-                    self.dados['contas'][i]['saldo'] += despesa['valor']
+                    tipo_transacao = despesa.get('tipo', 'despesa')
+                    if tipo_transacao == 'receita':
+                        self.dados['contas'][i]['saldo'] -= despesa['valor']
+                    else: # despesa
+                        self.dados['contas'][i]['saldo'] += despesa['valor']
                     break
         
         del self.dados['despesas'][indice]
